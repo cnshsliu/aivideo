@@ -29,11 +29,6 @@ from pydub import AudioSegment
 import openai
 import dashscope
 from dotenv import load_dotenv
-import websockets
-import uuid
-import struct
-import io
-import asyncio
 import json
 
 # Load environment variables
@@ -49,53 +44,44 @@ class VideoGenerator:
     """
     
     def __init__(self, args):
+        # Import ConfigManager for configuration handling
+        from config_module import ConfigManager
+        # Import MediaProcessor for media file handling
+        from media_module import MediaProcessor
+        # Import AudioManager for audio processing
+        from audio_module import AudioManager
+        # Import VideoSynthesizer for video synthesis
+        from video_synthesis_module import VideoSynthesizer
+
         self.args = args
-        self.project_folder = Path(args.folder)
-        self.media_folder = self.project_folder / "media"
-        self.prompt_folder = self.project_folder / "prompt"
-        self.subtitle_folder = self.project_folder / "subtitle"
-        
-        # Validate project structure
-        self._validate_project_structure()
-        
-        # Media files list
-        self.media_files = []
-        self.start_file = None
-        self.closing_file = None
-        
+        self.config = ConfigManager(args)
+
+        # Get project paths from config
+        paths = self.config.get_project_paths()
+        self.project_folder = paths['project']
+        self.media_folder = paths['media']
+        self.prompt_folder = paths['prompt']
+        self.subtitle_folder = paths['subtitle']
+
+        # Get logger from config
+        self.logger = self.config.get_logger()
+
+        # Initialize media processor
+        self.media_processor = MediaProcessor(self.config, self.logger)
+
+        # Initialize audio manager
+        self.audio_manager = AudioManager(self.config)
+        # Initialize video synthesizer
+        self.video_synthesizer = VideoSynthesizer(self.config, self.media_processor, self.args, self.logger)
+
         # Generated content
         self.subtitles = []
         self.voice_subtitles = []  # For TTS (with punctuation)
         self.display_subtitles = []  # For video display (cleaned)
         self.display_to_voice_mapping = []  # Maps display subtitle index to voice subtitle index
         self.audio_file = None
-        
-        # Setup logging
-        self._setup_logging()
     
-    def _setup_logging(self):
-        """Setup logging configuration"""
-        # Create logs directory
-        logs_dir = self.project_folder / "logs"
-        logs_dir.mkdir(exist_ok=True)
-        
-        # Create log filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = logs_dir / f"video_generation_{timestamp}.log"
-        
-        # Configure logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file, encoding='utf-8'),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
-        
-        self.logger = logging.getLogger(__name__)
-        self.logger.info(f"Video generation started for project: {self.project_folder}")
-        self.logger.info(f"Log file: {log_file}")
+    # _setup_logging moved to config_module
     
     def _log_subtitles(self, source="unknown"):
         """Log generated subtitles with detailed information"""
@@ -125,45 +111,17 @@ class VideoGenerator:
         
         self.logger.info(f"Subtitles saved to: {subtitle_file}")
         
-    def _validate_project_structure(self):
-        """Validate that the project folder has the required structure"""
-        if not self.project_folder.exists():
-            raise FileNotFoundError(f"Project folder doesn't exist: {self.project_folder}")
-            
-        required_folders = ["media", "prompt", "subtitle"]
-        for folder in required_folders:
-            if not (self.project_folder / folder).exists():
-                (self.project_folder / folder).mkdir(parents=True, exist_ok=True)
+    # _validate_project_structure moved to config_module
     
     def scan_media_files(self):
         """Scan media folder and identify special files"""
-        # Find all media files (videos and images)
-        media_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', 
-                          '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'}
-        
-        all_files = []
-        for file_path in self.media_folder.iterdir():
-            if file_path.suffix.lower() in media_extensions:
-                # Check for special files
-                if file_path.stem.lower() in ['start', 'starting']:
-                    self.start_file = file_path
-                elif file_path.stem.lower() == 'closing':
-                    self.closing_file = file_path
-                else:
-                    all_files.append(file_path)
-        
-        # Sort media files according to the specified method
-        if self.args.sort == 'alphnum':
-            all_files.sort(key=lambda x: x.name.lower())
-        elif self.args.sort == 'random':
-            random.shuffle(all_files)
-        
-        self.media_files = all_files
-        print(f"Found {len(self.media_files)} media files")
-        if self.start_file:
-            print(f"Found start file: {self.start_file}")
-        if self.closing_file:
-            print(f"Found closing file: {self.closing_file}")
+        # Use media processor to scan files
+        self.media_processor.scan_media_files()
+
+        # Get the results from media processor
+        self.media_files = self.media_processor.media_files
+        self.start_file = self.media_processor.start_file
+        self.closing_file = self.media_processor.closing_file
     
     def load_existing_subtitles(self):
         """Load existing subtitles from voice_subtitles.txt and display_subtitles.txt, or fallback to generated_subtitles.txt"""
@@ -542,264 +500,24 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
         if not hasattr(self, 'voice_subtitles') or not self.voice_subtitles:
             raise ValueError("No voice subtitles available for audio generation")
 
-        # Get Volcengine credentials from environment variables
-        app_id = os.getenv("VOLCENGINE_APP_ID")
-        access_token = os.getenv("VOLCENGINE_ACCESS_TOKEN")
-
-        if not app_id:
-            raise ValueError("VOLCENGINE_APP_ID not found in environment variables")
-        if not access_token:
-            raise ValueError("VOLCENGINE_ACCESS_TOKEN not found in environment variables")
-
-        # Combine all voice subtitles for full audio (with punctuation for natural speech)
-        full_text = " ".join(self.voice_subtitles)
-
         try:
-            # Generate audio using Volcengine TTS
-            audio_path = self.project_folder / "generated_audio.mp3"
+            # Generate audio using the audio manager
+            audio_path = self.audio_manager.generate_audio(self.voice_subtitles)
 
-            # Run the async Volcengine TTS function
-            audio_data = asyncio.run(self._generate_audio_volcengine(app_id, access_token, full_text))
-
-            if audio_data:
-                with open(audio_path, 'wb') as f:
-                    f.write(audio_data)
+            if audio_path:
+                self.audio_file = Path(audio_path)
                 print(f"Audio file saved to: {audio_path}")
+
+                # Calculate subtitle timestamps based on audio duration and subtitle count
+                self._calculate_subtitle_timestamps()
             else:
-                raise Exception("No audio data received from Volcengine TTS")
-
-            self.audio_file = audio_path
-
-            # Calculate subtitle timestamps based on audio duration and subtitle count
-            self._calculate_subtitle_timestamps()
+                raise Exception("Failed to generate audio using audio manager")
 
         except Exception as e:
-            print(f"Damn, Volcengine TTS failed: {e}")
+            print(f"Damn, Audio generation failed: {e}")
             print("Voice generation failed - exiting program")
             sys.exit(1)
 
-    async def _generate_audio_volcengine(self, app_id: str, access_token: str, text: str) -> bytes:
-        """Generate audio using Volcengine TTS WebSocket API"""
-        endpoint = "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
-
-        # Prepare request payload
-        request = {
-            "app": {
-                "appid": app_id,
-                "token": access_token,
-                "cluster": "volcano_tts",
-            },
-            "user": {
-                "uid": str(uuid.uuid4()),
-            },
-            "audio": {
-                "voice_type": "zh_female_shuangkuaisisi_moon_bigtts",
-                "encoding": "mp3",
-            },
-            "request": {
-                "reqid": str(uuid.uuid4()),
-                "text": text,
-                "operation": "submit",
-                "with_timestamp": "1",
-                "extra_param": json.dumps({
-                    "disable_markdown_filter": False,
-                }),
-            },
-        }
-
-        headers = {
-            "Authorization": f"Bearer;{access_token}",
-        }
-
-        audio_data = bytearray()
-
-        try:
-            # Initialize WebSocket message counter for dot display
-            self._websocket_message_count = 0
-            self._last_dot_print_time = 0
-
-            # Connect to Volcengine WebSocket
-            async with websockets.connect(endpoint, additional_headers=headers, max_size=10 * 1024 * 1024) as websocket:
-                print(f"Connected to Volcengine TTS WebSocket")
-
-                # Send the TTS request
-                await self._volcengine_full_client_request(websocket, json.dumps(request).encode())
-
-                print("Receiving audio data", end='', flush=True)
-
-                # Receive audio data
-                while True:
-                    msg = await self._volcengine_receive_message(websocket)
-
-                    if msg.type == self._volcengine_msg_type("FrontEndResultServer"):
-                        continue
-                    elif msg.type == self._volcengine_msg_type("AudioOnlyServer"):
-                        audio_data.extend(msg.payload)
-                        if msg.sequence < 0:  # Last message
-                            break
-                    else:
-                        raise RuntimeError(f"TTS conversion failed: {msg}")
-
-                # Print newline after dots are done
-                print()  # Newline after the dots
-                return bytes(audio_data)
-
-        except Exception as e:
-            print(f"Volcengine TTS WebSocket error: {e}")
-            raise
-
-    def _volcengine_msg_type(self, name: str):
-        """Get Volcengine message type by name"""
-        class MsgType:
-            Invalid = 0
-            FullClientRequest = 0b1
-            AudioOnlyClient = 0b10
-            FullServerResponse = 0b1001
-            AudioOnlyServer = 0b1011
-            FrontEndResultServer = 0b1100
-            Error = 0b1111
-
-        return getattr(MsgType, name, MsgType.Invalid)
-
-    class VolcengineMessage:
-        """Simplified Volcengine message class"""
-        def __init__(self, type_value=0, flag=0, sequence=0, payload=b""):
-            self.type = type_value
-            self.flag = flag
-            self.sequence = sequence
-            self.payload = payload
-
-        def marshal(self):
-            """Serialize message to bytes"""
-            buffer = io.BytesIO()
-
-            # Write header
-            version = 1
-            header_size = 1  # HeaderSize4 = 1 means 4*1=4 bytes
-            serialization = 1  # JSON = 1
-            compression = 0  # None = 0
-
-            header = [
-                (version << 4) | header_size,
-                (self.type << 4) | self.flag,
-                (serialization << 4) | compression,
-            ]
-
-            # Add padding to make header exactly 4 bytes
-            header_size_bytes = 4 * header_size
-            if padding := header_size_bytes - len(header):
-                header.extend([0] * padding)
-
-            buffer.write(bytes(header))
-
-            # Write sequence number if needed
-            if self.flag in [1, 3]:  # PositiveSeq or NegativeSeq
-                buffer.write(struct.pack(">i", self.sequence))
-
-            # Write payload with size
-            size = len(self.payload)
-            buffer.write(struct.pack(">I", size))
-            buffer.write(self.payload)
-
-            return buffer.getvalue()
-
-        @classmethod
-        def from_bytes(cls, data: bytes):
-            """Create message from bytes"""
-            if len(data) < 3:
-                raise ValueError(f"Data too short: expected at least 3 bytes, got {len(data)}")
-
-            type_and_flag = data[1]
-            msg_type = type_and_flag >> 4
-            flag = type_and_flag & 0b00001111
-
-            msg = cls(type_value=msg_type, flag=flag)
-            msg.unmarshal(data)
-            return msg
-
-        def unmarshal(self, data: bytes):
-            """Parse message data"""
-            buffer = io.BytesIO(data)
-
-            # Read version and header size
-            version_and_header_size = buffer.read(1)[0]
-            version = version_and_header_size >> 4
-            header_size = version_and_header_size & 0b00001111
-
-            # Skip second byte
-            buffer.read(1)
-
-            # Read serialization and compression methods
-            serialization_compression = buffer.read(1)[0]
-            serialization = serialization_compression >> 4
-            compression = serialization_compression & 0b00001111
-
-            # Skip header padding
-            read_size = 3
-            if padding_size := header_size * 4 - read_size:
-                buffer.read(padding_size)
-
-            # Read sequence number if needed
-            if self.flag in [1, 3]:  # PositiveSeq or NegativeSeq
-                sequence_bytes = buffer.read(4)
-                if sequence_bytes:
-                    self.sequence = struct.unpack(">i", sequence_bytes)[0]
-
-            # Read payload
-            size_bytes = buffer.read(4)
-            if size_bytes:
-                size = struct.unpack(">I", size_bytes)[0]
-                if size > 0:
-                    self.payload = buffer.read(size)
-
-            # Check for remaining data
-            remaining = buffer.read()
-            if remaining:
-                raise ValueError(f"Unexpected data after message: {remaining}")
-
-        def __str__(self):
-            return f"Type: {self.type}, Flag: {self.flag}, Sequence: {self.sequence}, PayloadSize: {len(self.payload)}"
-
-    async def _volcengine_receive_message(self, websocket):
-        """Receive message from Volcengine WebSocket"""
-        try:
-            data = await websocket.recv()
-            if isinstance(data, str):
-                raise ValueError(f"Unexpected text message: {data}")
-            elif isinstance(data, bytes):
-                msg = self.VolcengineMessage.from_bytes(data)
-
-                # Show continuous dots instead of detailed log messages
-                if not hasattr(self, '_websocket_message_count'):
-                    self._websocket_message_count = 0
-                    self._last_dot_print_time = 0
-
-                self._websocket_message_count += 1
-
-                # Print dots progressively (every 10 messages)
-                import time
-                current_time = time.time()
-                if self._websocket_message_count % 10 == 0 or current_time - self._last_dot_print_time > 1.0:
-                    print('.', end='', flush=True)
-                    self._last_dot_print_time = current_time
-
-                return msg
-            else:
-                raise ValueError(f"Unexpected message type: {type(data)}")
-        except Exception as e:
-            print(f"Failed to receive message: {e}")
-            raise
-
-    async def _volcengine_full_client_request(self, websocket, payload: bytes):
-        """Send full client request to Volcengine"""
-        msg = self.VolcengineMessage(type_value=0b1, flag=0)  # FullClientRequest, NoSeq
-        msg.payload = payload
-
-        data = msg.marshal()
-        print(f"Sending: {msg}")
-        print(f"Raw data length: {len(data)}")
-        print(f"Raw data (hex): {data.hex()}")
-        await websocket.send(data)
 
     def _calculate_subtitle_timestamps(self):
         """Calculate intelligent timestamps for display subtitles based on voice subtitles and audio duration"""
@@ -904,35 +622,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
 
     def _estimate_speaking_time(self, text):
         """Estimate speaking time for text based on linguistic analysis"""
-        if not text:
-            return 1.0  # Minimum duration
-
-        # Count different types of characters
-        total_chars = len(text)
-        chinese_chars = sum(1 for char in text if self._contains_chinese(char))
-        english_words = len([word for word in text.split() if not self._contains_chinese(word)])
-        digits = sum(1 for char in text if char.isdigit())
-        punctuation = sum(1 for char in text if char in '，。！？；：""''（）【】《》')
-
-        # Fixed timing calculation - more reasonable limits
-        # Chinese characters: ~0.25 seconds each (faster pace)
-        # English words: ~0.2 seconds each
-        # Digits: ~0.3 seconds each
-        # Punctuation: minimal pause time
-
-        chinese_time = chinese_chars * 0.25
-        english_time = english_words * 0.2
-        digit_time = digits * 0.3
-        punctuation_time = punctuation * 0.1
-
-        # Base time from content
-        base_time = chinese_time + english_time + digit_time + punctuation_time
-
-        # Much more reasonable bounds - prevent any single subtitle from dominating
-        # Maximum 8 seconds per subtitle, minimum 2 seconds
-        estimated_time = max(2.0, min(base_time, 8.0))
-
-        return estimated_time
+        return estimate_speaking_time(text)
 
     def _optimize_subtitles(self, raw_subtitles):
         """Optimize subtitles for display while preserving timing relationships.
@@ -980,23 +670,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
 
     def _clean_and_validate_subtitle(self, subtitle):
         """Clean and validate a single subtitle to ensure it meets requirements"""
-        # Remove extra whitespace
-        cleaned = subtitle.strip()
-
-        # Ensure it ends with proper punctuation (prefer period)
-        if not cleaned.endswith('。') and not cleaned.endswith('！') and not cleaned.endswith('？'):
-            cleaned += '。'
-
-        # Clean any other punctuation issues while preserving sentence structure
-        cleaned = self._clean_punctuation(cleaned)
-
-        return cleaned
+        return clean_and_validate_subtitle(subtitle)
 
     def _remove_trailing_period(self, text):
         """Remove trailing period from text for display subtitles"""
-        if text.endswith('。'):
-            return text[:-1].strip()
-        return text
+        return remove_trailing_period(text)
 
     def _needs_splitting(self, subtitle):
         """Check if subtitle needs to be split due to length"""
@@ -1305,49 +983,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
 
     def _clean_punctuation(self, text):
         """Clean punctuation from text while preserving periods, question marks, and exclamation marks"""
-        if not text:
-            return text
-
-        # Extract and preserve periods, question marks, and exclamation marks throughout the text
-        preserved_marks = []
-        text_without_marks = ""
-
-        i = 0
-        while i < len(text):
-            if text[i] in '。！？!?':
-                preserved_marks.append((i, text[i]))  # Store position and mark
-            else:
-                text_without_marks += text[i]
-            i += 1
-
-        # Punctuation to remove (all punctuation except periods, question marks, and exclamation marks)
-        punctuation_to_remove = '，、；：""\'\'()（）【】《》<>》>——・•·…—–~@#$%^&*_+=|\\/{}.,;:[]'
-
-        # Remove all occurrences of forbidden punctuation
-        cleaned = text_without_marks
-        for char in punctuation_to_remove:
-            cleaned = cleaned.replace(char, '')
-
-        # Remove extra whitespace
-        cleaned = ' '.join(cleaned.split())
-
-        # Re-insert the preserved periods, question marks, and exclamation marks
-        # Adjust positions based on removed characters
-        result = ""
-        cleaned_index = 0
-        for orig_pos, mark in preserved_marks:
-            # Add text up to this position
-            while cleaned_index < len(cleaned) and cleaned_index < orig_pos:
-                result += cleaned[cleaned_index]
-                cleaned_index += 1
-
-            # Add the preserved mark
-            result += mark
-
-        # Add remaining cleaned text
-        result += cleaned[cleaned_index:]
-
-        return result
+        return clean_punctuation_complex(text)
 
     def _split_by_length(self, subtitle):
         """Split subtitle by character/word count as last resort"""
@@ -1419,275 +1055,19 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
 
     def process_media_clips(self):
         """Process media clips according to specifications"""
-        if not self.media_files:
-            raise ValueError("No media files found")
-
-        self.logger.info(f"Processing media clips with args.length: {getattr(self.args, 'length', 'None')}")
-        self.logger.info(f"Available media files: {len(self.media_files)}")
-
-        # Determine how many clips to use
-        clip_num = len(self.media_files)
-        if self.args.clip_num and self.args.clip_num > 0:
-            clip_num = min(self.args.clip_num, len(self.media_files))
-
-        selected_clips = self.media_files[:clip_num]
-        self.logger.info(f"Selected {len(selected_clips)} clips for processing")
-
-        if self.args.keep_clip_length:
-            # Keep original clip lengths
-            self.logger.info("Using keep_clip_length mode")
-            return self._process_with_original_length(selected_clips)
-        else:
-            # Check if we have a target length
-            target_length = getattr(self.args, 'length', None)
-            self.logger.info(f"Target length check: {target_length}")
-            if target_length:
-                # Cut clips to fit target length
-                self.logger.info("Using target length mode")
-                return self._process_with_target_length(selected_clips)
-            else:
-                # No target length specified - keep original lengths
-                self.logger.info("No target length specified, keeping original clip lengths")
-                return self._process_with_original_length(selected_clips)
+        return self.video_synthesizer.process_media_clips(self.media_files, self.args)
 
     def _resize_to_mobile_aspect_ratio(self, clip):
         """Resize video clip to mobile portrait 9:16 aspect ratio with center scaling"""
-        try:
-            # Test the original clip first
-            try:
-                test_frame = clip.get_frame(0.1)
-                if test_frame is None:
-                    raise ValueError("Original clip cannot be read")
-            except Exception as frame_error:
-                self.logger.error(f"Original clip frame read failed: {frame_error}")
-                return clip
-
-            # Target mobile portrait resolution (9:16) - width:height = 9:16
-            target_width = 1080   # Standard mobile portrait width
-            target_height = 1920  # Standard mobile portrait height
-
-            # Get original clip dimensions
-            original_width = clip.w
-            original_height = clip.h
-
-            self.logger.info(f"Original dimensions: {original_width}x{original_height}")
-
-            # Check if clip is smaller than target mobile screen
-            is_smaller = (original_width < target_width) or (original_height < target_height)
-
-            if is_smaller:
-                # Clip is smaller than screen - center and scale up until smaller dimension covers screen
-                self.logger.info("Clip is smaller than mobile screen, centering and scaling up...")
-
-                # Calculate scale factor needed to cover the screen
-                # We want the smaller dimension to exactly match the target
-                scale_width = target_width / original_width
-                scale_height = target_height / original_height
-
-                # Choose the larger scale factor to ensure full coverage
-                scale_factor = max(scale_width, scale_height)
-
-                # Calculate new dimensions after scaling
-                scaled_width = int(original_width * scale_factor)
-                scaled_height = int(original_height * scale_factor)
-
-                self.logger.info(f"Scaling up by factor {scale_factor:.2f} to {scaled_width}x{scaled_height}")
-
-                # Resize the clip
-                scaled_clip = clip.resize((scaled_width, scaled_height))
-
-                # Crop from center to target dimensions
-                x_center = scaled_width // 2
-                y_center = scaled_height // 2
-                x1 = max(0, x_center - target_width // 2)
-                x2 = min(scaled_width, x_center + target_width // 2)
-                y1 = max(0, y_center - target_height // 2)
-                y2 = min(scaled_height, y_center + target_height // 2)
-
-                final_clip = scaled_clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
-
-                self.logger.info(f"Cropped to mobile portrait: {target_width}x{target_height}")
-
-                # Clean up
-                scaled_clip.close()
-
-                return final_clip
-
-            else:
-                # Clip is larger than or equal to screen - crop to 9:16 aspect ratio
-                self.logger.info("Clip is larger than mobile screen, cropping to 9:16 aspect ratio...")
-
-                # Target aspect ratio for mobile portrait: 9:16 (width:height)
-                target_aspect = 9/16  # 0.5625
-                original_aspect = original_width / original_height
-
-                if original_aspect > target_aspect:
-                    # Original is wider than target - crop width
-                    new_width = int(original_height * target_aspect)
-                    new_height = original_height
-                    x_center = original_width // 2
-                    x1 = max(0, x_center - new_width // 2)
-                    x2 = min(original_width, x_center + new_width // 2)
-                    y1 = 0
-                    y2 = original_height
-                else:
-                    # Original is taller than target - crop height
-                    new_width = original_width
-                    new_height = int(original_width / target_aspect)
-                    y_center = original_height // 2
-                    y1 = max(0, y_center - new_height // 2)
-                    y2 = min(original_height, y_center + new_height // 2)
-                    x1 = 0
-                    x2 = original_width
-
-                # Crop the clip to the target aspect ratio
-                cropped_clip = clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
-
-                # Resize to target mobile resolution
-                final_clip = cropped_clip.resize((target_width, target_height))
-
-                self.logger.info(f"Cropped and resized to mobile portrait: {target_width}x{target_height}")
-
-                # Clean up
-                cropped_clip.close()
-
-                return final_clip
-
-        except Exception as e:
-            self.logger.error(f"Error in _resize_to_mobile_aspect_ratio: {e}")
-            return clip
+        return self.media_processor._resize_to_mobile_aspect_ratio(clip)
 
     def _safe_load_video_clip(self, file_path, max_duration_check=10.0):
         """Safely load a video clip with error handling for corrupted files"""
-        try:
-            # First try to get basic file info
-            if not file_path.exists():
-                self.logger.warning(f"File does not exist: {file_path}")
-                return None
-
-            # Try to load with a quick duration check first
-            test_clip = VideoFileClip(str(file_path))
-
-            # Check if duration is valid
-            if not hasattr(test_clip, 'duration') or test_clip.duration is None or test_clip.duration <= 0:
-                self.logger.warning(f"Invalid duration for {file_path}: {getattr(test_clip, 'duration', 'unknown')}")
-                test_clip.close()
-                return None
-
-            # Check if file is too long (might be corrupted)
-            if test_clip.duration > 3600:  # More than 1 hour
-                self.logger.warning(f"File seems too long ({test_clip.duration:.2f}s), might be corrupted: {file_path}")
-                test_clip.close()
-                return None
-
-            # Quick check of first few frames
-            if test_clip.duration > max_duration_check:
-                # Try to read a frame from the beginning
-                try:
-                    test_clip.subclip(0, min(1.0, test_clip.duration)).close()
-                except Exception as frame_error:
-                    self.logger.warning(f"Failed to read initial frames from {file_path}: {frame_error}")
-                    test_clip.close()
-                    return None
-
-                # Try to read a frame from near the end to detect corruption
-                try:
-                    end_check_start = max(0, test_clip.duration - max_duration_check)
-                    test_clip.subclip(end_check_start, test_clip.duration).close()
-                except Exception as frame_error:
-                    # Don't fail completely for end-frame issues - many files have this problem
-                    self.logger.info(f"Minor corruption detected at end of {file_path} (ignoring): {frame_error}")
-                    # Continue with the clip - it's still usable
-
-            # If all checks pass, return the clip without resizing for now
-            # TEMPORARY: Disabled mobile aspect ratio resizing due to frame read issues
-            final_clip = test_clip
-            self.logger.info(f"Successfully loaded video clip: {file_path} ({final_clip.duration:.2f}s) [resizing disabled]")
-            return final_clip
-
-        except Exception as e:
-            self.logger.warning(f"Failed to load video clip {file_path}: {e}")
-            return None
+        return self.media_processor._safe_load_video_clip(file_path, max_duration_check)
 
     def _safe_concatenate_clips(self, clips, method="compose"):
         """Safely concatenate clips with robust error handling"""
-        if len(clips) == 0:
-            raise ValueError("No clips to concatenate")
-
-        if len(clips) == 1:
-            return clips[0]
-
-        self.logger.info(f"Concatenating {len(clips)} clips with method: {method}")
-
-        # Filter out any invalid clips
-        valid_clips = []
-        for i, clip in enumerate(clips):
-            # First check basic properties
-            if not hasattr(clip, 'duration') or clip.duration is None or clip.duration <= 0:
-                self.logger.warning(f"Skipping invalid clip {i}: duration={getattr(clip, 'duration', 'unknown')}")
-                continue
-
-            # Test if the clip can actually be read
-            try:
-                test_frame = clip.get_frame(0.1)
-                if test_frame is None:
-                    self.logger.warning(f"Skipping clip {i}: cannot read frames")
-                    continue
-            except Exception as frame_error:
-                self.logger.warning(f"Skipping clip {i}: frame read error - {frame_error}")
-                continue
-
-            # If all checks pass, add to valid clips
-            valid_clips.append(clip)
-            self.logger.debug(f"Clip {i} is valid: duration={clip.duration:.2f}s")
-
-        if len(valid_clips) == 0:
-            raise ValueError("No valid clips available for concatenation")
-
-        if len(valid_clips) == 1:
-            self.logger.info("Only one valid clip, no concatenation needed")
-            return valid_clips[0]
-
-        # Try different concatenation methods
-        try:
-            # Method 1: Standard concatenate_videoclips
-            self.logger.info("Attempting standard concatenate_videoclips...")
-            result = concatenate_videoclips(valid_clips, method=method)
-
-            # Verify the result can be read
-            if result is None:
-                raise ValueError("concatenate_videoclips returned None")
-
-            try:
-                test_frame = result.get_frame(0.1)
-                if test_frame is None:
-                    raise ValueError("Cannot read frames from concatenated clip")
-            except Exception as frame_error:
-                raise ValueError(f"Cannot read frames from concatenated clip: {frame_error}")
-
-            self.logger.info(f"Successfully concatenated {len(valid_clips)} clips")
-            return result
-        except Exception as e:
-            self.logger.warning(f"Standard concatenation failed: {e}")
-
-        # Method 2: Try with different method
-        try:
-            self.logger.info("Attempting concatenation with chain method...")
-            result = concatenate_videoclips(valid_clips, method="chain")
-            self.logger.info(f"Successfully concatenated {len(valid_clips)} clips with chain method")
-            return result
-        except Exception as e:
-            self.logger.warning(f"Chain concatenation failed: {e}")
-
-        # Method 3: Create individual video files and use ffmpeg directly as last resort
-        try:
-            self.logger.info("Attempting manual concatenation approach...")
-            # For now, just return the first valid clip as fallback
-            self.logger.warning("Concatenation failed, using first valid clip as fallback")
-            return valid_clips[0]
-        except Exception as e:
-            self.logger.error(f"Manual concatenation also failed: {e}")
-            raise ValueError(f"Failed to concatenate clips after multiple attempts: {e}")
+        return self.media_processor._safe_concatenate_clips(clips, method)
     
     def _process_with_original_length(self, clips):
         """Process clips keeping their original length"""
@@ -2144,176 +1524,15 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
     
     def _get_chinese_compatible_font(self, default_font='Arial'):
         """Get a font that supports Chinese characters"""
-        # List of Chinese-compatible fonts, in order of preference
-        chinese_fonts = [
-            # Cross-platform Unicode fonts (verified working for rendering)
-            'Arial-Unicode-MS',  # Cross-platform Unicode - WORKING for rendering
-            'Lucida Sans Unicode',  # Cross-platform Unicode
-
-            # macOS Chinese fonts (detected but rendering issues)
-            'Heiti SC',  # macOS Chinese simplified - detected but rendering issues
-            'Heiti TC',  # macOS Chinese traditional - detected but rendering issues
-            'Noto Sans SC',  # macOS Noto Sans Chinese - detected but rendering issues
-            'STHeiti Medium',  # macOS Chinese medium
-            'STHeiti Light',  # macOS Chinese light
-
-            # Additional macOS fonts
-            'PingFang SC',  # macOS system font
-            'PingFang HK',  # macOS Hong Kong variant
-            'PingFang TC',  # macOS Taiwan variant
-            'Hiragino Sans GB',  # macOS Chinese simplified
-
-            # Windows fonts
-            'Microsoft YaHei',  # Windows Chinese font
-            'SimSun',  # Windows Chinese simplified
-            'SimHei',  # Windows Chinese Simplified
-
-            # Linux/open source fonts
-            'Noto Sans CJK SC',  # Linux Noto Sans
-            'WenQuanYi Micro Hei',  # Linux Chinese font
-            'AR PL UMing CN',  # Linux Chinese font
-
-            # Try with underscores instead of hyphens (some systems use this format)
-            'Heiti_SC',
-            'Heiti_TC',
-            'Noto_Sans_SC',
-            'PingFang_SC',
-            'Arial_Unicode_MS',
-            'Lucida_Sans_Unicode',
-
-            default_font  # Fallback to default
-        ]
-
-        # Try each font until we find one that works
-        for font in chinese_fonts:
-            try:
-                self.logger.info(f"Testing font: {font}")
-
-                # Test if the font can render Chinese characters with proper rendering check
-                test_text = "测试中文字体"
-                test_clip = TextClip(
-                    test_text,
-                    fontsize=12,
-                    color='white',
-                    font=font,
-                    stroke_color='black',
-                    stroke_width=1,
-                    size=(200, 50)
-                )
-
-                # Create a black background to test rendering
-                from moviepy.editor import ColorClip, CompositeVideoClip
-                bg = ColorClip(size=(200, 50), color=(0, 0, 0))
-                composite = CompositeVideoClip([bg, test_clip.set_position('center')])
-
-                # Get a frame to verify actual rendering
-                test_frame = composite.get_frame(0)
-
-                # Check if text was actually rendered (not just black background)
-                text_rendered = not (test_frame == 0).all()
-
-                # Clean up
-                test_clip.close()
-                bg.close()
-                composite.close()
-
-                if text_rendered:
-                    self.logger.info(f"SUCCESS: Font {font} can properly render Chinese characters!")
-                    return font
-                else:
-                    self.logger.debug(f"Font {font} exists but doesn't render Chinese properly")
-                    continue
-
-            except Exception as font_error:
-                self.logger.debug(f"Font {font} failed Chinese test: {font_error}")
-                # Also try with a simpler test to see if the font exists at all
-                try:
-                    simple_test = TextClip(
-                        "Test",
-                        fontsize=12,
-                        color='white',
-                        font=font,
-                        stroke_color='black',
-                        stroke_width=1
-                    )
-                    simple_test.close()
-                    self.logger.debug(f"Font {font} exists but can't render Chinese")
-                except Exception as e2:
-                    self.logger.debug(f"Font {font} doesn't exist at all: {e2}")
-                continue
-
-        # If none of the predefined fonts work, try to find Chinese fonts in system
-        self.logger.info("No predefined Chinese fonts worked, trying system font detection...")
-        system_font = self._find_chinese_font_in_system()
-        if system_font:
-            return system_font
-
-        # If no Chinese font works, try the default font
-        try:
-            test_clip = TextClip(
-                "Test",
-                fontsize=12,
-                color='white',
-                font=default_font,
-                stroke_color='black',
-                stroke_width=1
-            )
-            test_clip.close()
-            self.logger.warning(f"No Chinese font found, using default: {default_font}")
-            return default_font
-        except Exception as e:
-            self.logger.error(f"Even default font {default_font} failed: {e}")
-            return None
+        return get_chinese_compatible_font(default_font, self.logger)
 
     def _get_system_fonts(self):
         """Get available system fonts on macOS"""
-        import subprocess
-        try:
-            # Use system_profiler to get available fonts on macOS
-            result = subprocess.run(['system_profiler', 'SPFontsDataType'],
-                                  capture_output=True, text=True, timeout=30)
-            if result.returncode == 0:
-                font_lines = []
-                for line in result.stdout.split('\n'):
-                    if 'Font Name:' in line:
-                        font_name = line.split('Font Name:')[1].strip()
-                        font_lines.append(font_name)
-                return font_lines
-        except Exception as e:
-            self.logger.warning(f"Could not get system fonts: {e}")
-        return []
+        return get_system_fonts(self.logger)
 
     def _find_chinese_font_in_system(self):
         """Find Chinese fonts in system font list"""
-        system_fonts = self._get_system_fonts()
-        if not system_fonts:
-            return None
-
-        # Look for Chinese fonts in the system list
-        chinese_keywords = ['PingFang', 'Heiti', 'STHeiti', 'Hiragino', 'Microsoft YaHei',
-                          'SimSun', 'SimHei', 'Noto Sans CJK', 'WenQuanYi', 'KaiTi', 'FangSong']
-
-        for font in system_fonts:
-            for keyword in chinese_keywords:
-                if keyword.lower() in font.lower():
-                    self.logger.info(f"Found Chinese font in system: {font}")
-                    # Test if it works
-                    try:
-                        test_clip = TextClip(
-                            "测试中文字体",
-                            fontsize=12,
-                            color='white',
-                            font=font,
-                            stroke_color='black',
-                            stroke_width=1
-                        )
-                        test_clip.close()
-                        return font
-                    except Exception as e:
-                        self.logger.debug(f"System font {font} failed test: {e}")
-                        continue
-
-        return None
+        return find_chinese_font_in_system(self.logger)
 
     def _create_srt_subtitle_file(self):
         """Create SRT subtitle file with calculated timestamps"""
@@ -2370,136 +1589,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
 
     def _contains_chinese(self, text):
         """Check if text contains Chinese characters"""
-        if not text:
-            return False
-
-        # Chinese character ranges (including common CJK characters)
-        chinese_ranges = [
-            (0x4E00, 0x9FFF),    # CJK Unified Ideographs (Common Chinese)
-            (0x3400, 0x4DBF),    # CJK Unified Ideographs Extension A
-            (0x20000, 0x2A6DF),  # CJK Unified Ideographs Extension B
-            (0x2A700, 0x2B73F),  # CJK Unified Ideographs Extension C
-            (0x2B740, 0x2B81F),  # CJK Unified Ideographs Extension D
-            (0x2B820, 0x2CEAF),  # CJK Unified Ideographs Extension E
-            (0x3300, 0x33FF),    # CJK Compatibility
-            (0xFE30, 0xFE4F),    # CJK Compatibility Forms
-            (0xF900, 0xFAFF),    # CJK Compatibility Ideographs
-            (0x2F800, 0x2FA1F),  # CJK Compatibility Ideographs Supplement
-            (0x3100, 0x312F),    # Bopomofo
-            (0x31A0, 0x31BF),    # Bopomofo Extended
-            (0x3040, 0x309F),    # Hiragana
-            (0x30A0, 0x30FF),    # Katakana
-            (0xAC00, 0xD7AF),    # Hangul Syllables
-        ]
-
-        chinese_chars = []
-        for char in text:
-            char_code = ord(char)
-            for start, end in chinese_ranges:
-                if start <= char_code <= end:
-                    chinese_chars.append(char)
-                    break
-
-        if chinese_chars:
-            print(f"Chinese characters detected: {chinese_chars}")
-            return True
-        return False
+        return contains_chinese(text)
 
     def add_subtitles(self, clip, subtitle_text):
         """Legacy method: Add single subtitle to clip with Chinese font support"""
-        if not subtitle_text:
-            return clip
-
-        try:
-            font_size = getattr(self.args, 'subtitle_font_size', 48)
-            if font_size is None:
-                font_size = 48
-            subtitle_font = getattr(self.args, 'subtitle_font', 'Arial') or 'Arial'
-
-            # Check if text contains Chinese and use appropriate font
-            if self._contains_chinese(subtitle_text):
-                self.logger.info(f"Chinese text detected: '{subtitle_text}'")
-                subtitle_font = self._get_chinese_compatible_font(subtitle_font)
-                if subtitle_font is None:
-                    self.logger.error("No compatible font found for Chinese text")
-                    return clip
-
-            self.logger.info(f"Creating subtitle with font: {subtitle_font}")
-
-            # Calculate maximum text width for mobile portrait video with proper margins
-            # For 1080px width: 15% margins = 162px each side, text area = 756px
-            max_text_width = int(clip.w * 0.65)  # Reduced to 65% for mobile safety
-
-            subtitle_clip = TextClip(
-                subtitle_text,
-                fontsize=font_size,
-                color='white',
-                font=subtitle_font,
-                stroke_color='black',
-                stroke_width=1,
-                size=(max_text_width, None),  # Strict width limit
-                method='caption',              # Enable text wrapping
-                align='center',                # Center alignment
-                transparent=True,
-                kerning=-1                    # Reduce character spacing
-            )
-
-            # Position subtitle (centered)
-            subtitle_position = getattr(self.args, 'subtitle_position', 80)
-            if subtitle_position is None:
-                subtitle_position = 80
-            y_position = subtitle_position / 100 * clip.h
-            subtitle_x = clip.w / 2 - subtitle_clip.w / 2
-            subtitle_y = y_position
-
-            # Safety check: if text is still too wide, enforce strict limits
-            if subtitle_clip.w > max_text_width:
-                self.logger.warning(f"Text still too wide after wrapping: {subtitle_clip.w} > {max_text_width}")
-                subtitle_clip.close()
-                # Try with much smaller font size - more aggressive reduction for mobile
-                if self._contains_chinese(subtitle_text):
-                    emergency_font_size = max(16, int(font_size * 0.4))  # 40% reduction for Chinese
-                else:
-                    emergency_font_size = max(18, int(font_size * 0.5))  # 50% reduction for English
-                self.logger.info(f"Emergency font size reduction: {font_size} → {emergency_font_size}")
-                subtitle_clip = TextClip(
-                    subtitle_text,
-                    fontsize=emergency_font_size,
-                    color='white',
-                    font=subtitle_font,
-                    stroke_color='black',
-                    stroke_width=1,
-                    size=(max_text_width, None),
-                    method='caption',
-                    align='center',
-                    transparent=True,
-                    kerning=-1
-                )
-                subtitle_x = clip.w / 2 - subtitle_clip.w / 2
-
-                # Final safety check - if still too wide, force width scaling
-                if subtitle_clip.w > max_text_width:
-                    self.logger.error(f"Text still exceeds width after emergency reduction: {subtitle_clip.w} > {max_text_width}")
-                    # Force scale the text clip width to fit exactly
-                    force_scale = max_text_width / subtitle_clip.w
-                    subtitle_clip = subtitle_clip.resize(force_scale)
-                    subtitle_x = clip.w / 2 - subtitle_clip.w / 2
-                    self.logger.info(f"Applied forced scaling: {force_scale:.2f}x")
-                    self.logger.error(f"WARNING: Text was scaled down to fit - consider shortening subtitle text")
-                else:
-                    self.logger.info(f"Reduced font size to {emergency_font_size} to fit text")
-
-            subtitle_clip = subtitle_clip.set_position((subtitle_x, subtitle_y))
-
-            result = CompositeVideoClip([clip, subtitle_clip])
-            # Ensure the composite clip has the same duration as the original
-            result = result.set_duration(clip.duration)
-            return result
-
-        except Exception as e:
-            self.logger.error(f"Subtitle creation failed for '{subtitle_text}': {e}")
-            print(f"Damn, subtitle creation failed for '{subtitle_text}': {e}")
-            return clip
+        return self.video_synthesizer.add_subtitles(clip, subtitle_text, self.args)
 
     def add_timestamped_subtitles(self, video_clip):
         """Add all subtitles with their specific timestamps to the video"""
@@ -2851,77 +1945,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
 
     def _split_long_subtitle_text(self, text, max_length=14):
         """Split long subtitle text into multiple lines for mobile display"""
-        # First, check if text needs splitting based on visual width rather than character count
-        if len(text) <= max_length:
-            return [text]
-
-        # For Chinese text, use a more conservative approach
-        if self._contains_chinese(text):
-            max_length = 12  # Chinese characters are wider
-
-        # Try to split at natural break points
-        break_points = ['，', '。', '！', '？', '、', '；', '：', ' ', '的', '和', '与', '及']
-
-        for break_char in break_points:
-            if break_char in text:
-                parts = text.split(break_char)
-                if len(parts) > 1:
-                    result = []
-                    current_line = ""
-                    for part in parts:
-                        # Check if adding this part would exceed the limit
-                        test_line = current_line + (break_char if current_line else "") + part
-                        if len(test_line) <= max_length:
-                            if current_line:
-                                current_line += break_char + part
-                            else:
-                                current_line = part
-                        else:
-                            # Current line is full, add to result
-                            if current_line:
-                                result.append(current_line)
-                            # Start new line with current part
-                            current_line = part
-                            # If the part itself is too long, split it further
-                            if len(current_line) > max_length:
-                                # Split the part into chunks
-                                for i in range(0, len(current_line), max_length):
-                                    result.append(current_line[i:i+max_length])
-                                current_line = ""
-                    if current_line:
-                        result.append(current_line)
-
-                    # Validate all lines are within limits
-                    result = [line for line in result if line.strip()]
-                    if all(len(line) <= max_length for line in result):
-                        return result
-
-        # If no natural break points, split by character count
-        lines = []
-        for i in range(0, len(text), max_length):
-            lines.append(text[i:i+max_length])
-        return lines
+        return split_long_subtitle_text(text, max_length)
 
     def _calculate_safe_max_chars(self, text, max_width_pixels):
         """Calculate safe maximum characters based on character types"""
-        if not text:
-            return 20  # Default fallback
-
-        # Count character types
-        chinese_count = sum(1 for char in text if self._contains_chinese(char))
-        english_count = sum(1 for char in text if char.isalpha() and not self._contains_chinese(char))
-        digit_count = sum(1 for char in text if char.isdigit())
-
-        # Calculate character width multiplier
-        # Chinese characters are ~2x wider than English characters
-        char_width_sum = chinese_count * 2 + english_count + digit_count * 1.5
-        avg_char_width = char_width_sum / len(text) if text else 1.5
-
-        # Estimate safe character count based on pixel width
-        # Assuming average character width of ~12 pixels for English
-        safe_chars = int(max_width_pixels / (12 * avg_char_width))
-
-        return min(safe_chars, 12 if chinese_count > 0 else 14)
+        return calculate_safe_max_chars(text, max_width_pixels)
 
     def _regenerate_with_mobile_portrait_ratio(self, video_file, current_width, current_height):
         """Regenerate video by cropping from center to 9:16 (width:height) aspect ratio"""
@@ -3100,28 +2128,56 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
             self.logger.info(f"Using text file: {self.args.text}")
             if self.load_text_file_subtitles(self.args.text):
                 # Text file loaded successfully, now decide about voice generation
-                if self.args.gen_voice:
-                    self.logger.info("Generating voice for text file subtitles...")
+                # Apply the same logic: only generate if --gen OR no existing file
+                audio_file = self.project_folder / "generated_audio.mp3"
+                if self.args.gen:
+                    # User explicitly requested regeneration with --gen flag
+                    self.logger.info("--gen flag detected: generating voice for text file subtitles...")
                     self.generate_audio()
+                elif audio_file.exists():
+                    # Existing file found and no explicit request, use existing
+                    self.audio_file = audio_file
+                    self.logger.info("Found existing generated_audio.mp3, using existing audio for text file subtitles")
+                    # Calculate subtitle timestamps using existing audio
+                    self._calculate_subtitle_timestamps()
                 else:
-                    # Check if existing audio file exists
-                    audio_file = self.project_folder / "generated_audio.mp3"
-                    if audio_file.exists():
-                        self.audio_file = audio_file
-                        self.logger.info("Using existing audio file")
-                        # Calculate subtitle timestamps using existing audio
-                        self._calculate_subtitle_timestamps()
-                    else:
-                        raise FileNotFoundError("No audio file found. Use --gen-voice to generate audio.")
+                    # No existing file, we need to generate
+                    self.logger.info("No existing audio found for text file subtitles, generating new audio...")
+                    self.generate_audio()
             else:
                 raise FileNotFoundError(f"Failed to load subtitles from text file: {self.args.text}")
         else:
             # Standard logic without --text parameter
-            subtitle_needs_generation = self.args.gen_subtitle
-            voice_needs_generation = self.args.gen_voice
+            # New unified logic: if --gen is present OR either file is missing, generate both
+            subtitle_file = self.subtitle_folder / "generated_subtitles.txt"
+            audio_file = self.project_folder / "generated_audio.mp3"
 
-            self.logger.info(f"Subtitle generation: {'YES' if subtitle_needs_generation else 'NO'}")
-            self.logger.info(f"Voice generation: {'YES' if voice_needs_generation else 'NO'}")
+            # Check if both files exist
+            subtitle_exists = subtitle_file.exists()
+            audio_exists = audio_file.exists()
+
+            # New unified generation logic
+            if self.args.gen:
+                # User explicitly requested regeneration with --gen flag
+                subtitle_needs_generation = True
+                voice_needs_generation = True
+                self.logger.info("--gen flag detected: generating both subtitles and voice again")
+            elif subtitle_exists and audio_exists:
+                # Both files exist and no explicit request, use existing
+                subtitle_needs_generation = False
+                voice_needs_generation = False
+                self.logger.info("Both subtitle and audio files exist, using existing files")
+            else:
+                # At least one file is missing, generate both
+                subtitle_needs_generation = True
+                voice_needs_generation = True
+                if not subtitle_exists:
+                    self.logger.info("Missing generated_subtitles.txt, will generate subtitles")
+                if not audio_exists:
+                    self.logger.info("Missing generated_audio.mp3, will generate audio")
+
+            self.logger.info(f"Final decision - Subtitle generation: {'YES' if subtitle_needs_generation else 'NO'}")
+            self.logger.info(f"Final decision - Voice generation: {'YES' if voice_needs_generation else 'NO'}")
 
             # Load subtitles if not generating them
             if not subtitle_needs_generation:
@@ -3189,6 +2245,173 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
 
         # Restore original length
         self.args.length = original_length
+
+        # Process main clips (no titles added here - titles added to final video)
+        processed_main_clips = []
+        for i, clip in enumerate(main_clips):
+            # Note: Titles are now added to the final concatenated video, not individual clips
+            # This prevents title overlays from being lost during concatenation
+
+            # Note: Subtitles are now added to the entire video later using timestamp-based synchronization
+            # The old per-clip subtitle assignment has been removed
+
+            # Ensure clip has duration
+            if hasattr(clip, 'duration') and clip.duration is not None:
+                processed_main_clips.append(clip)
+            else:
+                self.logger.warning(f"Skipping main clip {i} due to None duration")
+
+        # Concatenate main clips to create main content
+        if len(processed_main_clips) == 0:
+            raise ValueError("No main clips available for video creation")
+
+        if len(processed_main_clips) == 1:
+            main_content = processed_main_clips[0]
+            self.logger.info("Single main clip, no concatenation needed")
+        else:
+            self.logger.info("Concatenating main clips")
+            main_content = self._safe_concatenate_clips(processed_main_clips, method="compose")
+
+        main_content_duration = main_content.duration
+        self.logger.info(f"Main content duration: {main_content_duration:.2f}s")
+        print(f"✅ Main content created: {main_content_duration:.2f}s")
+
+        # Step 3: Trim main video to match audio length
+        self.logger.info("Step 3: Trimming main video to match audio length...")
+        print("✂️  Step 3: Trimming main video to match audio length...")
+
+        if audio_duration and self.audio_file and self.audio_file.exists():
+            try:
+                # Get audio duration for comparison
+                audio_clip_check = AudioFileClip(str(self.audio_file))
+                actual_audio_duration = audio_clip_check.duration
+                audio_clip_check.close()
+
+                self.logger.info(f"Audio duration: {actual_audio_duration:.2f}s")
+                self.logger.info(f"Main content duration: {main_content_duration:.2f}s")
+
+                if main_content_duration > actual_audio_duration:
+                    # Trim main content to match audio duration
+                    self.logger.info(f"Trimming main content from {main_content_duration:.2f}s to {actual_audio_duration:.2f}s")
+                    main_content = main_content.subclip(0, actual_audio_duration)
+                    self.logger.info(f"Main content trimmed to: {main_content.duration:.2f}s")
+                elif main_content_duration < actual_audio_duration:
+                    self.logger.info(f"Main content ({main_content_duration:.2f}s) is shorter than audio ({actual_audio_duration:.2f}s) - keeping as is")
+                else:
+                    self.logger.info("Main content and audio durations match perfectly")
+
+            except Exception as e:
+                self.logger.warning(f"Failed to trim main content to audio length: {e}")
+                self.logger.info("Continuing with original main content duration")
+
+        # Step 4: Add audio to main content
+        self.logger.info("Step 4: Adding audio to main content...")
+        print("🎵 Step 4: Adding audio to main content...")
+
+        if audio_duration and self.audio_file and self.audio_file.exists():
+            try:
+                audio = AudioFileClip(str(self.audio_file))
+                self.logger.info(f"Audio duration: {audio.duration:.2f}s")
+
+                # Now durations should match perfectly, but double-check
+                if abs(main_content.duration - audio.duration) > 0.1:
+                    self.logger.warning(f"Duration mismatch after trimming: video={main_content.duration:.2f}s, audio={audio.duration:.2f}s")
+                    # Trim audio to match video duration as final safeguard
+                    if audio.duration > main_content.duration:
+                        audio = audio.subclip(0, main_content.duration)
+                        self.logger.info(f"Trimmed audio to match video: {audio.duration:.2f}s")
+
+                # Apply audio to main content
+                main_content = main_content.set_audio(audio)
+                self.logger.info(f"Main content with audio duration: {main_content.duration:.2f}s")
+
+                # Note: Subtitles will be added to the final video after title is added
+                # This prevents subtitles from covering the title
+                self.logger.info("Step 4.5: Subtitles will be added to final video after title...")
+                print("📝 Step 4.5: Subtitles will be added to final video after title...")
+
+            except Exception as e:
+                self.logger.error(f"Failed to add audio: {e}")
+                print(f"Damn, failed to add audio: {e}")
+
+        # Step 5: Prepend starting clip
+        self.logger.info("Step 5: Prepending starting clip...")
+        print("🎬 Step 5: Adding starting clip...")
+
+        final_clips = []
+
+        # Add start clip if available
+        if self.start_file:
+            start_clip = self._safe_load_video_clip(self.start_file)
+            if start_clip is not None:
+                # Resize start clip to fit mobile aspect ratio (remove black borders)
+                start_clip = self._resize_to_mobile_aspect_ratio(start_clip)
+                self.logger.info(f"Resized start clip to mobile aspect ratio: {start_clip.w}x{start_clip.h}")
+
+                # Make start clip silent if requested
+                if self.args.clip_silent:
+                    start_clip = start_clip.without_audio()
+                # Note: Title is now added to the final concatenated video, not individual clips
+                final_clips.append(start_clip)
+                self.logger.info(f"Added start clip: {start_clip.duration:.2f}s")
+            else:
+                self.logger.warning(f"Skipping corrupted start clip: {self.start_file}")
+
+        # Add main content with audio
+        final_clips.append(main_content)
+
+        # Step 6: Append ending clip
+        self.logger.info("Step 6: Appending ending clip...")
+        print("🎬 Step 6: Adding ending clip...")
+
+        # Add closing clip if available
+        if self.closing_file:
+            closing_clip = self._safe_load_video_clip(self.closing_file)
+            if closing_clip is not None:
+                # Resize closing clip to fit mobile aspect ratio (remove black borders)
+                closing_clip = self._resize_to_mobile_aspect_ratio(closing_clip)
+                self.logger.info(f"Resized closing clip to mobile aspect ratio: {closing_clip.w}x{closing_clip.h}")
+
+                # Make closing clip silent if requested
+                if self.args.clip_silent:
+                    closing_clip = closing_clip.without_audio()
+                final_clips.append(closing_clip)
+                self.logger.info(f"Added closing clip: {closing_clip.duration:.2f}s")
+            else:
+                self.logger.warning(f"Skipping corrupted closing clip: {self.closing_file}")
+
+        # Step 7: Create final video
+        self.logger.info("Step 7: Creating final video...")
+        print("🎬 Step 7: Creating final video...")
+
+        # Calculate total duration
+        total_duration = sum(c.duration for c in final_clips if hasattr(c, 'duration') and c.duration is not None)
+        self.logger.info(f"Final video duration: {total_duration:.2f}s")
+
+        # Debug: Log the structure of final_clips
+        self.logger.info(f"🔍 DEBUG: Final clips structure - {len(final_clips)} clips:")
+        for i, clip in enumerate(final_clips):
+            if hasattr(clip, 'duration') and clip.duration is not None:
+                self.logger.info(f"🔍 DEBUG: Clip {i}: {clip.w}x{clip.h}, duration: {clip.duration:.2f}s")
+            else:
+                self.logger.info(f"🔍 DEBUG: Clip {i}: [No duration info]")
+
+        # Concatenate all clips
+        if len(final_clips) == 1:
+            final_clip = final_clips[0]
+            self.logger.info("Single clip, no concatenation needed")
+        else:
+            try:
+                final_clip = self._safe_concatenate_clips(final_clips, method="compose")
+                self.logger.info(f"Successfully concatenated final video with {len(final_clips)} components")
+                self.logger.info(f"🔍 DEBUG: Final clip dimensions: {final_clip.w}x{final_clip.h}, duration: {final_clip.duration:.2f}s")
+            except Exception as concat_error:
+                self.logger.error(f"Failed to concatenate final clips: {concat_error}")
+                # Fallback: use the main content
+                final_clip = main_content
+                self.logger.warning("Using main content as fallback")
+
+        self.logger.info(f"Final video duration: {final_clip.duration:.2f}s")
 
         # Process main clips with titles only (subtitles added later to entire video)
         processed_main_clips = []
@@ -3343,6 +2566,14 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
         total_duration = sum(c.duration for c in final_clips if hasattr(c, 'duration') and c.duration is not None)
         self.logger.info(f"Final video duration: {total_duration:.2f}s")
 
+        # Debug: Log the structure of final_clips
+        self.logger.info(f"🔍 DEBUG: Final clips structure - {len(final_clips)} clips:")
+        for i, clip in enumerate(final_clips):
+            if hasattr(clip, 'duration') and clip.duration is not None:
+                self.logger.info(f"🔍 DEBUG: Clip {i}: {clip.w}x{clip.h}, duration: {clip.duration:.2f}s")
+            else:
+                self.logger.info(f"🔍 DEBUG: Clip {i}: [No duration info]")
+
         # Concatenate all clips
         if len(final_clips) == 1:
             final_clip = final_clips[0]
@@ -3351,6 +2582,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
             try:
                 final_clip = self._safe_concatenate_clips(final_clips, method="compose")
                 self.logger.info(f"Successfully concatenated final video with {len(final_clips)} components")
+                self.logger.info(f"🔍 DEBUG: Final clip dimensions: {final_clip.w}x{final_clip.h}, duration: {final_clip.duration:.2f}s")
             except Exception as concat_error:
                 self.logger.error(f"Failed to concatenate final clips: {concat_error}")
                 # Fallback: use the main content
@@ -3486,42 +2718,22 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
         self.logger.info("Video generation process finished.")
 
 
-def parse_args():
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="AI Video Generator")
-    
-    parser.add_argument("--folder", required=True, help="Project folder")
-    parser.add_argument("--sort", choices=['alphnum', 'random'], default='alphnum',
-                       help="Media material pickup order")
-    parser.add_argument("--keep-clip-length", action="store_true",
-                       help="Keep length of each clip")
-    parser.add_argument("--length", type=float, help="Result video length in seconds")
-    parser.add_argument("--clip-num", type=int, help="Number of clips")
-    parser.add_argument("--title", help="Title text at the beginning")
-    parser.add_argument("--keep-title", action="store_true",
-                       help="Keep title text across full video except closing clip")
-    parser.add_argument("--title-length", type=float, help="Seconds to show title")
-    parser.add_argument("--title-font", help="Font for title")
-    parser.add_argument("--title-font-size", type=int, default=72,
-                       help="Title font size (default: 72)")
-    parser.add_argument("--title-position", type=float, default=20,
-                       help="Title position (percentage of screen height)")
-    parser.add_argument("--subtitle-font", help="Font for subtitle")
-    parser.add_argument("--subtitle-font-size", type=int, default=48,
-                       help="Subtitle font size (default: 48)")
-    parser.add_argument("--subtitle-position", type=float, default=80,
-                       help="Subtitle position (percentage of screen height)")
-    parser.add_argument("--clip-silent", action="store_true", default=True,
-                       help="Make each clip silent (default: True)")
-    parser.add_argument("--gen-subtitle", action="store_true", default=False,
-                       help="Generate subtitles using LLM or static files")
-    parser.add_argument("--gen-voice", action="store_true", default=False,
-                       help="Generate voice using Volcengine TTS")
-    parser.add_argument("--llm-provider", choices=['qwen', 'grok', 'glm', 'ollama'], default='qwen',
-                       help="LLM provider for subtitle generation (default: qwen)")
-    parser.add_argument("--text", help="Text file to use as subtitles (overrides other subtitle sources)")
-
-    return parser.parse_args()
+# Import parse_args from config_module
+from config_module import parse_args
+# Import utility functions from utils_module
+from utils_module import (
+    estimate_speaking_time,
+    clean_and_validate_subtitle,
+    remove_trailing_period,
+    contains_chinese,
+    split_long_subtitle_text,
+    calculate_safe_max_chars,
+    get_chinese_compatible_font,
+    get_system_fonts,
+    find_chinese_font_in_system,
+    clean_punctuation,
+    clean_punctuation_complex
+)
 
 
 def main():
