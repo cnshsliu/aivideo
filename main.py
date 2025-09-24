@@ -1974,7 +1974,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
             font_size = getattr(self.args, 'title_font_size', 60)
             if font_size is None:
                 font_size = 60
-            title_font = getattr(self.args, 'title_font', 'Arial-Bold') or 'Arial-Bold'
+            title_font = getattr(self.args, 'title_font', 'Arial-Black') or 'Arial-Black'
 
             # Check if title contains Chinese and use appropriate font
             full_title_text = self.args.title
@@ -2011,10 +2011,10 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
                     title_clip = TextClip(
                         line.strip(),
                         fontsize=current_font_size,
-                        color='white',
+                        color='yellow',
                         font=title_font,
                         stroke_color='black',
-                        stroke_width=2
+                        stroke_width=4
                     )
 
                     # Verify the clip was created successfully
@@ -2033,15 +2033,15 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
                     print(f"Damn, title text clip creation failed for line '{line.strip()}': {text_error}")
                     # Try fallback font
                     try:
-                        fallback_font = 'Arial'
+                        fallback_font = 'Arial-Bold'
                         self.logger.info(f"Trying fallback font: {fallback_font}")
                         title_clip = TextClip(
                             line.strip(),
                             fontsize=current_font_size,
-                            color='white',
+                            color='yellow',
                             font=fallback_font,
                             stroke_color='black',
-                            stroke_width=2
+                            stroke_width=4
                         )
 
                         if title_clip is None:
