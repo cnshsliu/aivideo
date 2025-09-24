@@ -2014,7 +2014,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
                         color='yellow',
                         font=title_font,
                         stroke_color='black',
-                        stroke_width=4
+                        stroke_width=2
                     )
 
                     # Verify the clip was created successfully
@@ -2041,7 +2041,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks."""}
                             color='yellow',
                             font=fallback_font,
                             stroke_color='black',
-                            stroke_width=4
+                            stroke_width=2
                         )
 
                         if title_clip is None:
