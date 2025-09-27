@@ -371,8 +371,7 @@ class VideoProcessor:
                     codec='libx264',
                     audio_codec='aac',
                     fps=clip.fps,
-                    verbose=False,
-                    logger=None
+                    verbose=False
                 )
 
                 self.logger.info(f"Mobile portrait video created: {output_path}")
@@ -474,8 +473,7 @@ class VideoProcessor:
                     codec='libx264',
                     audio_codec='aac',
                     fps=clip.fps,
-                    verbose=False,
-                    logger=None
+                    verbose=False
                 )
 
                 self.logger.info(f"16:9 video created: {output_path}")
@@ -697,8 +695,7 @@ class VideoProcessor:
                     preset=preset,
                     ffmpeg_params=['-crf', str(crf), '-movflags', '+faststart'],
                     threads=4,
-                    verbose=True,
-                    logger=None
+                    verbose=True
                 )
 
                 return True
@@ -741,8 +738,7 @@ class VideoProcessor:
                     preset=preset,
                     ffmpeg_params=['-crf', str(crf), '-movflags', '+faststart'],
                     threads=4,
-                    verbose=True,
-                    logger=None
+                    verbose=True
                 )
 
                 # Clear timeout

@@ -115,8 +115,7 @@ def repair_video(input_path, output_path, logger):
             preset='ultrafast',  # Fast encoding for repair
             threads=4,
             fps=24,  # Standard frame rate
-            verbose=False,
-            logger=None
+            verbose=False
         )
 
         clip.close()

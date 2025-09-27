@@ -1361,7 +1361,6 @@ class VideoSynthesizer:
                     ffmpeg_params=["-crf", str(crf), "-movflags", "+faststart"],
                     threads=4,
                     verbose=True,
-                    logger=None,
                 )
 
                 # Clear timeout

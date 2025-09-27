@@ -1810,7 +1810,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 return None
 
             # Try to load with a quick duration check first
-            test_clip = VideoFileClip(str(file_path))
+            test_clip = VideoFileClip(str(file_path), audio=True)
 
             # Check if duration is valid
             if (
@@ -2031,8 +2031,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     )
 
                 # Make clip silent if requested
-                if self.args.clip_silent:
-                    clip = clip.without_audio()
+                clip = clip.without_audio()
 
                 processed_clips.append(clip)
 
@@ -2320,8 +2319,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                                 )
 
                 # Make clip silent if requested
-                if self.args.clip_silent:
-                    clip = clip.without_audio()
+                clip = clip.without_audio()
 
                 processed_clips.append(clip)
 
@@ -3402,7 +3400,16 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 str(video_file),
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if result.returncode != 0:
+                self.logger.error(
+                    f"ffprobe failed with exit code {result.returncode}: {result.stderr}"
+                )
+                return False
+            if not result.stdout:
+                self.logger.error("ffprobe returned no output")
+                return False
+
             video_info = json.loads(result.stdout)
 
             # Find video stream
@@ -4024,8 +4031,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 )
 
                 # Make start clip silent if requested
-                if self.args.clip_silent:
-                    start_clip = start_clip.without_audio()
+                start_clip = start_clip.without_audio()
                 # Add title to start clip if we have a title
                 if self.args.title:
                     start_clip = self.add_title(start_clip, use_full_duration=True)
@@ -4052,8 +4058,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 )
 
                 # Make closing clip silent if requested
-                if self.args.clip_silent:
-                    closing_clip = closing_clip.without_audio()
+                closing_clip = closing_clip.without_audio()
                 final_clips.append(closing_clip)
                 self.logger.info(f"Added closing clip: {closing_clip.duration:.2f}s")
             else:
