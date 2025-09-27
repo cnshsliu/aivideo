@@ -12,11 +12,11 @@ import threading
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Union
 
-from moviepy.editor import (
+from moviepy import (
     VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip,
     concatenate_videoclips, vfx, ImageClip, ColorClip, VideoClip
 )
-from moviepy.video.fx import resize, fadein, fadeout
+from moviepy.video.fx import Resize, FadeIn, FadeOut
 import numpy as np
 import random
 from pathlib import Path
@@ -1137,3 +1137,226 @@ class VideoProcessor:
             return self._process_with_original_length(clips, args)
         else:
             return self._process_with_target_length(clips, args)
+
+    def add_title_advanced(self, clip: VideoClip, title_text: str = None, title_font: str = 'Arial',
+                         title_font_size: int = 60, title_position: float = 20,
+                         title_length: float = 3.0, use_full_duration: bool = False) -> VideoClip:
+        """Add advanced title to clip with Chinese font support and multi-line handling"""
+        if not title_text:
+            return clip
+
+        try:
+            # Determine title duration
+            if use_full_duration:
+                title_duration = clip.duration
+            else:
+                title_duration = title_length
+                if title_duration > clip.duration:
+                    title_duration = clip.duration
+
+            self.logger.info(f"Adding title with duration: {title_duration}s to clip of duration: {clip.duration}s")
+
+            # Parse title - split by comma for multi-line
+            title_lines = title_text.split(',')
+
+            # Check if title contains Chinese and use appropriate font
+            if self._contains_chinese(title_text):
+                self.logger.info(f"Chinese text detected in title: '{title_text}'")
+                title_font = self._get_chinese_compatible_font_advanced(title_font)
+                if title_font is None:
+                    self.logger.error("No compatible font found for Chinese title text")
+                    return clip
+
+            title_clips = []
+            y_offset = title_position / 100 * clip.h
+
+            for i, line in enumerate(title_lines):
+                # Adjust font size for subsequent lines
+                current_font_size = title_font_size if i == 0 else int(title_font_size * 0.9)
+
+                try:
+                    # Test if the font is valid by trying to create a small text clip first
+                    test_clip = TextClip(
+                        "Test",
+                        fontsize=12,
+                        color='white',
+                        font=title_font,
+                        stroke_color='black',
+                        stroke_width=1
+                    )
+                    test_clip.close()
+
+                    # Create the actual title clip
+                    title_clip = TextClip(
+                        line.strip(),
+                        fontsize=current_font_size,
+                        color='yellow',
+                        font=title_font,
+                        stroke_color='black',
+                        stroke_width=4
+                    )
+
+                    # Verify the clip was created successfully
+                    if title_clip is None:
+                        raise ValueError("TextClip returned None")
+
+                    # Position the title
+                    title_x = clip.w / 2 - title_clip.w / 2
+                    title_y = y_offset + i * (current_font_size + 10)
+
+                    title_clip = title_clip.with_position((title_x, title_y))
+                    title_clip = title_clip.with_duration(title_duration)
+                    title_clips.append(title_clip)
+                except Exception as text_error:
+                    self.logger.error(f"Title text clip creation failed for line '{line.strip()}': {text_error}")
+                    # Try fallback font
+                    try:
+                        fallback_font = 'Arial-Bold'
+                        self.logger.info(f"Trying fallback font: {fallback_font}")
+                        title_clip = TextClip(
+                            line.strip(),
+                            fontsize=current_font_size,
+                            color='yellow',
+                            font=fallback_font,
+                            stroke_color='black',
+                            stroke_width=4
+                        )
+
+                        if title_clip is None:
+                            raise ValueError("Fallback TextClip returned None")
+
+                        # Position the title
+                        title_x = clip.w / 2 - title_clip.w / 2
+                        title_y = y_offset + i * (current_font_size + 10)
+
+                        title_clip = title_clip.with_position((title_x, title_y))
+                        title_clip = title_clip.with_duration(title_duration)
+                        title_clips.append(title_clip)
+                        self.logger.info(f"Successfully created title with fallback font")
+                    except Exception as fallback_error:
+                        self.logger.error(f"Fallback font also failed: {fallback_error}")
+                        continue
+
+            if not title_clips:
+                self.logger.warning("No title clips created, returning original clip")
+                return clip
+
+            # Filter out any None clips that might have been created
+            title_clips = [clip for clip in title_clips if clip is not None]
+            if not title_clips:
+                self.logger.warning("All title clips were None, returning original clip")
+                return clip
+
+            # If title duration is less than clip duration, we need to split the clip
+            if title_duration < clip.duration:
+                try:
+                    # Verify the clip is valid before subclip operations
+                    if clip is None:
+                        raise ValueError("Original clip is None")
+
+                    # Create a version with title for the title duration
+                    clip_with_title = clip.subclip(0, title_duration)
+                    if clip_with_title is None:
+                        raise ValueError("clip_with_title is None after subclip")
+
+                    # Create composite with all title clips
+                    all_clips = [clip_with_title] + title_clips
+                    # Filter out any None clips
+                    all_clips = [c for c in all_clips if c is not None]
+
+                    titled_clip = CompositeVideoClip(all_clips)
+                    titled_clip = titled_clip.with_duration(title_duration)
+
+                    # Create the remaining part of the clip without title
+                    remaining_clip = clip.subclip(title_duration)
+                    if remaining_clip is None:
+                        raise ValueError("remaining_clip is None after subclip")
+
+                    # Ensure the remaining clip maintains the original video content
+                    remaining_composite = CompositeVideoClip([remaining_clip])
+                    remaining_composite = remaining_composite.with_duration(remaining_clip.duration)
+
+                    # Return both clips concatenated
+                    result = self._safe_concatenate_clips([titled_clip, remaining_composite], method="compose")
+                    self.logger.info(f"Created titled clip: {titled_clip.duration}s + remaining clip: {remaining_composite.duration}s = {result.duration}s")
+                    return result
+                except Exception as subclip_error:
+                    self.logger.error(f"Error during clip splitting: {subclip_error}")
+                    # Fallback: return original clip without title
+                    return clip
+            else:
+                # Title covers the entire clip
+                try:
+                    all_clips = [clip] + title_clips
+                    # Filter out any None clips
+                    all_clips = [c for c in all_clips if c is not None]
+
+                    result = CompositeVideoClip(all_clips)
+                    result = result.with_duration(clip.duration)
+                    self.logger.info(f"Title covers entire clip: {result.duration}s")
+                    return result
+                except Exception as composite_error:
+                    self.logger.error(f"Error during composite creation: {composite_error}")
+                    # Fallback: return original clip without title
+                    return clip
+
+        except Exception as e:
+            self.logger.error(f"Title creation failed: {e}")
+            return clip
+
+    def _get_chinese_compatible_font_advanced(self, default_font='Arial'):
+        """Get a font that supports Chinese characters with advanced fallback"""
+        # List of Chinese-compatible fonts, in order of preference
+        chinese_fonts = [
+            # Cross-platform Unicode fonts (verified working for rendering)
+            'Arial-Unicode-MS',  # Cross-platform Unicode
+            'Lucida Sans Unicode',  # Cross-platform Unicode
+            'Microsoft YaHei',    # Windows Chinese font
+            'SimHei',            # Windows Chinese font
+            'SimSun',            # Windows Chinese font
+            'PingFang SC',       # macOS Chinese font
+            'Hiragino Sans GB',  # macOS Chinese font
+            'STHeiti',           # macOS Chinese font
+            'STXihei',           # macOS Chinese font
+            'Noto Sans CJK SC',   # Linux Chinese font
+            'Source Han Sans CN', # Linux Chinese font
+            'WenQuanYi Micro Hei', # Linux Chinese font
+        ]
+
+        # Try Chinese fonts first
+        for font in chinese_fonts:
+            try:
+                # Test if font is available
+                test_clip = TextClip("测试", fontsize=12, font=font)
+                test_clip.close()
+                self.logger.info(f"Using Chinese font: {font}")
+                return font
+            except:
+                continue
+
+        # Try the default font
+        try:
+            test_clip = TextClip("test", fontsize=12, font=default_font)
+            test_clip.close()
+            self.logger.info(f"Using default font: {default_font}")
+            return default_font
+        except:
+            self.logger.warning("No suitable font found, using system default")
+            return ""
+
+    def _contains_chinese(self, text):
+        """Check if text contains Chinese characters"""
+        return any('\u4e00' <= char <= '\u9fff' for char in text)
+
+    def calculate_safe_max_chars(self, text, max_width_pixels):
+        """Calculate safe maximum characters for text display"""
+        # Estimate character width (Chinese characters are typically wider)
+        avg_char_width = 12 if self._contains_chinese(text) else 8
+
+        # Calculate maximum characters that fit
+        safe_max_chars = int(max_width_pixels / avg_char_width)
+
+        # Ensure minimum readability
+        safe_max_chars = max(safe_max_chars, 5)
+
+        return safe_max_chars

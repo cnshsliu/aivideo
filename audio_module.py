@@ -513,5 +513,129 @@ class VolcEngineTTSManager:
             return None
 
 
+    def calculate_subtitle_timestamps(self, voice_subtitles, display_subtitles, display_to_voice_mapping, audio_file_path, logger=None):
+        """Calculate intelligent timestamps for display subtitles based on voice subtitles and audio duration"""
+        if not audio_file_path or not Path(audio_file_path).exists():
+            raise ValueError("Audio file not available for timestamp calculation")
+
+        try:
+            # Load audio file to get duration
+            from moviepy import AudioFileClip
+            audio_clip = AudioFileClip(str(audio_file_path))
+            total_duration = audio_clip.duration
+            audio_clip.close()
+
+            if logger:
+                logger.info(f"Audio duration: {total_duration:.2f}s")
+                logger.info(f"Voice subtitles: {len(voice_subtitles)}")
+                logger.info(f"Display subtitles: {len(display_subtitles)}")
+
+            # Calculate timing based on voice subtitles (with punctuation)
+            voice_estimates = []
+            total_voice_time = 0
+
+            for voice_subtitle in voice_subtitles:
+                estimated_time = self._estimate_speaking_time(voice_subtitle)
+                voice_estimates.append(estimated_time)
+                total_voice_time += estimated_time
+
+            if logger:
+                logger.info(f"Total voice speaking time: {total_voice_time:.2f}s")
+
+            # Adjust voice timing to fit audio duration
+            if total_voice_time > total_duration:
+                # Scale down to fit
+                scale_factor = total_duration / total_voice_time
+                if logger:
+                    logger.info(f"Scaling voice timing by factor: {scale_factor:.3f}")
+                voice_estimates = [time * scale_factor for time in voice_estimates]
+            elif total_voice_time < total_duration:
+                # Distribute extra time proportionally
+                extra_time = total_duration - total_voice_time
+                proportional_extra = [extra_time * (time / total_voice_time) for time in voice_estimates]
+                voice_estimates = [voice_estimates[i] + proportional_extra[i] for i in range(len(voice_estimates))]
+
+            # Map voice subtitle timing to display subtitles using the mapping
+            subtitle_timestamps = []
+            current_time = 0.0
+
+            # Calculate voice subtitle start times
+            voice_start_times = []
+            voice_accumulated = 0.0
+            for voice_duration in voice_estimates:
+                voice_start_times.append(voice_accumulated)
+                voice_accumulated += voice_duration
+
+            # Group display subtitles by their original voice subtitle
+            display_groups = {}
+            for display_idx, voice_idx in display_to_voice_mapping:
+                if voice_idx not in display_groups:
+                    display_groups[voice_idx] = []
+                display_groups[voice_idx].append(display_idx)
+
+            # Calculate timing for each voice subtitle group
+            for voice_idx, display_indices in display_groups.items():
+                if voice_idx < len(voice_start_times):
+                    voice_start = voice_start_times[voice_idx]
+                    voice_duration = voice_estimates[voice_idx]
+
+                    if len(display_indices) == 1:
+                        # Single display subtitle for this voice subtitle
+                        display_idx = display_indices[0]
+                        if display_idx < len(display_subtitles):
+                            subtitle_timestamps.append({
+                                'text': display_subtitles[display_idx],
+                                'start_time': voice_start,
+                                'end_time': voice_start + voice_duration
+                            })
+                    else:
+                        # Multiple display subtitles for this voice subtitle
+                        for i, display_idx in enumerate(display_indices):
+                            if display_idx < len(display_subtitles):
+                                # Distribute time proportionally among display subtitles
+                                ratio = 1.0 / len(display_indices)
+                                start_time = voice_start + (i * voice_duration * ratio)
+                                end_time = voice_start + ((i + 1) * voice_duration * ratio)
+
+                                subtitle_timestamps.append({
+                                    'text': display_subtitles[display_idx],
+                                    'start_time': start_time,
+                                    'end_time': end_time
+                                })
+
+            return subtitle_timestamps
+
+        except Exception as e:
+            if logger:
+                logger.error(f"Error calculating subtitle timestamps: {e}")
+            raise
+
+    def _estimate_speaking_time(self, text):
+        """Estimate speaking time based on text content"""
+        if not text:
+            return 0.0
+
+        # Base calculation: Chinese characters take ~0.4s, English words take ~0.3s
+        chinese_count = self._count_chinese_characters(text)
+        english_words = len([word for word in text.split() if not any('\u4e00' <= char <= '\u9fff' for char in word)])
+
+        # Calculate estimated time
+        chinese_time = chinese_count * 0.4
+        english_time = english_words * 0.3
+
+        # Add some buffer for natural pauses
+        base_time = chinese_time + english_time
+        buffer_time = min(len(text) * 0.01, 2.0)  # Max 2 seconds buffer
+
+        estimated_time = max(base_time + buffer_time, 1.0)  # Minimum 1 second
+        return estimated_time
+
+    def _count_chinese_characters(self, text):
+        """Count Chinese characters in text"""
+        if not text:
+            return 0
+        return sum(1 for char in text if '\u4e00' <= char <= '\u9fff')
+
+
 # Backward compatibility - create AudioManager alias
 AudioManager = VolcEngineTTSManager

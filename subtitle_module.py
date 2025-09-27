@@ -607,3 +607,215 @@ class SubtitleManager:
         milliseconds = int((seconds % 1) * 1000)
 
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
+
+    def optimize_subtitles_advanced(self, raw_subtitles):
+        """Advanced subtitle optimization preserving timing relationships"""
+        self.logger.info(f"Optimizing {len(raw_subtitles)} raw subtitles for display")
+
+        if not raw_subtitles:
+            return []
+
+        display_subtitles = []
+        subtitle_mapping = []  # Maps display subtitle index to original voice subtitle index
+
+        # Ensure voice subtitles are properly formatted (with periods)
+        cleaned_voice_subtitles = []
+        for subtitle in raw_subtitles:
+            cleaned_subtitle = self._clean_and_validate_subtitle_advanced(subtitle)
+            cleaned_voice_subtitles.append(cleaned_subtitle)
+
+        # Generate display subtitles (without trailing periods)
+        for idx, voice_subtitle in enumerate(cleaned_voice_subtitles):
+            # For display subtitles, remove trailing periods
+            display_subtitle = self._remove_trailing_period(voice_subtitle)
+
+            # Split into multiple lines if still too long (fallback)
+            if self._needs_splitting_advanced(voice_subtitle):
+                chunks = self._split_long_subtitle_advanced(voice_subtitle)
+                # Remove trailing periods from display chunks
+                display_chunks = [self._remove_trailing_period(chunk) for chunk in chunks]
+                display_subtitles.extend(display_chunks)
+                # Each chunk maps to the same original subtitle
+                subtitle_mapping.extend([idx] * len(chunks))
+            else:
+                display_subtitles.append(display_subtitle)
+                subtitle_mapping.append(idx)
+
+        self.logger.info(f"Generated {len(display_subtitles)} display subtitles from {len(raw_subtitles)} voice subtitles")
+
+        return display_subtitles, subtitle_mapping
+
+    def _clean_and_validate_subtitle_advanced(self, subtitle):
+        """Clean and validate a single subtitle to ensure it meets requirements"""
+        # Remove extra whitespace
+        cleaned = subtitle.strip()
+
+        # Ensure it ends with proper punctuation (prefer period)
+        if not cleaned.endswith('。') and not cleaned.endswith('！') and not cleaned.endswith('？'):
+            cleaned += '。'
+
+        # Clean any other punctuation issues while preserving sentence structure
+        cleaned = self._clean_punctuation(cleaned)
+
+        return cleaned
+
+    def _needs_splitting_advanced(self, subtitle):
+        """Check if subtitle needs to be split due to length"""
+        length = self._calculate_display_length(subtitle)
+        return length > 20  # Maximum 20 characters
+
+    def _split_long_subtitle_advanced(self, subtitle):
+        """Split a long subtitle into appropriate chunks"""
+        # Try to split at punctuation first
+        if self._should_split_mixed_text(subtitle):
+            return self._split_mixed_text(subtitle, 20)
+        else:
+            return self._split_by_chinese_count(subtitle, 20)
+
+    def _should_split_subtitle_advanced(self, subtitle):
+        """Determine if a subtitle should be split based on length and content"""
+        # Stricter length limits for better readability
+        max_chars = 30 if self._contains_chinese(subtitle) else 50
+        max_words = 12
+
+        # Check character count
+        if len(subtitle) > max_chars:
+            return True
+
+        # Check word count (for English)
+        words = subtitle.split()
+        if len(words) > max_words:
+            return True
+
+        # Always split if there are major sentence endings (except for very short text)
+        major_breaks = ['。', '！', '？', '.', '!', '?']
+        if len(subtitle) > 15:
+            for break_char in major_breaks:
+                if break_char in subtitle:
+                    # Check if there's meaningful content before and after
+                    parts = subtitle.split(break_char)
+                    if len(parts) >= 2 and any(len(part.strip()) >= 5 for part in parts):
+                        return True
+
+        return False
+
+    def _calculate_display_length(self, text):
+        """Calculate display length of text (Chinese characters count as 2, English as 1)"""
+        if not text:
+            return 0
+
+        length = 0
+        for char in text:
+            if '\u4e00' <= char <= '\u9fff':
+                length += 2  # Chinese characters take more space
+            else:
+                length += 1  # English characters
+
+        return length
+
+    def add_subtitles_to_clip(self, video_clip, subtitle_timestamps=None):
+        """Add subtitles to video clip"""
+        if not MOVIEPY_AVAILABLE:
+            self.logger.error("MoviePy not available for subtitle rendering")
+            return video_clip
+
+        if not subtitle_timestamps:
+            if not self.voice_subtitles:
+                return video_clip
+            # Use existing voice subtitles
+            subtitle_timestamps = self.voice_subtitles
+
+        try:
+            # Create subtitle clips
+            subtitle_clips = []
+            for subtitle in subtitle_timestamps:
+                if isinstance(subtitle, dict):
+                    text = subtitle.get('text', '')
+                    start_time = subtitle.get('start', 0)
+                    end_time = subtitle.get('end', 0)
+                else:
+                    # Assume it's just text
+                    text = str(subtitle)
+                    start_time = 0
+                    end_time = video_clip.duration
+
+                if text and start_time < end_time:
+                    # Create text clip
+                    txt_clip = TextClip(
+                        text,
+                        fontsize=48,
+                        font='Arial',
+                        color='white',
+                        stroke_color='black',
+                        stroke_width=1,
+                        method='caption',
+                        align='center',
+                        size=(video_clip.w * 0.8, None)
+                    ).with_position(('center', 'bottom')).with_start(start_time).with_duration(end_time - start_time)
+
+                    subtitle_clips.append(txt_clip)
+
+            if subtitle_clips:
+                # Composite video with subtitles
+                final_clip = CompositeVideoClip([video_clip] + subtitle_clips)
+                return final_clip
+
+        except Exception as e:
+            self.logger.error(f"Error adding subtitles to clip: {e}")
+
+        return video_clip
+
+    def add_timestamped_subtitles(self, video_clip):
+        """Add subtitles with precise timing to video clip"""
+        if not MOVIEPY_AVAILABLE:
+            self.logger.error("MoviePy not available for subtitle rendering")
+            return video_clip
+
+        if not hasattr(self, 'subtitle_timestamps') or not self.subtitle_timestamps:
+            self.logger.warning("No subtitle timestamps available")
+            return video_clip
+
+        return self.add_subtitles_to_clip(video_clip, self.subtitle_timestamps)
+
+    def add_subtitles_fallback(self, video_clip):
+        """Fallback method to add subtitles without precise timing"""
+        if not MOVIEPY_AVAILABLE or not self.display_subtitles:
+            return video_clip
+
+        try:
+            subtitle_clips = []
+            total_duration = video_clip.duration
+
+            if total_duration > 0 and self.display_subtitles:
+                # Distribute subtitles evenly across video duration
+                duration_per_subtitle = total_duration / len(self.display_subtitles)
+
+                for i, subtitle in enumerate(self.display_subtitles):
+                    text = subtitle.get('text', '') if isinstance(subtitle, dict) else str(subtitle)
+                    if text:
+                        start_time = i * duration_per_subtitle
+                        end_time = (i + 1) * duration_per_subtitle
+
+                        # Create text clip
+                        txt_clip = TextClip(
+                            text,
+                            fontsize=48,
+                            font='Arial',
+                            color='white',
+                            stroke_color='black',
+                            stroke_width=1,
+                            method='caption',
+                            align='center',
+                            size=(video_clip.w * 0.8, None)
+                        ).with_position(('center', 'bottom')).with_start(start_time).with_duration(end_time - start_time)
+
+                        subtitle_clips.append(txt_clip)
+
+            if subtitle_clips:
+                final_clip = CompositeVideoClip([video_clip] + subtitle_clips)
+                return final_clip
+
+        except Exception as e:
+            self.logger.error(f"Error in fallback subtitle addition: {e}")
+
+        return video_clip

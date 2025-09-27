@@ -7,6 +7,7 @@ Damn, this thing manages all the config stuff! Don't mess with it unless you kno
 import os
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -258,3 +259,70 @@ class ConfigManager:
 
         self.logger.info("Project structure validated")
         return True
+
+    def clean_and_validate_subtitle(self, subtitle: str) -> str:
+        """Clean and validate a single subtitle to ensure it meets requirements"""
+        # Remove extra whitespace
+        cleaned = subtitle.strip()
+
+        # Ensure it ends with proper punctuation (prefer period)
+        if not cleaned.endswith('。') and not cleaned.endswith('！') and not cleaned.endswith('？'):
+            cleaned += '。'
+
+        # Clean any other punctuation issues while preserving sentence structure
+        cleaned = self._clean_punctuation(cleaned)
+
+        return cleaned
+
+    def remove_trailing_period(self, text: str) -> str:
+        """Remove trailing period from text for display subtitles"""
+        if text.endswith('。'):
+            return text[:-1].strip()
+        return text
+
+    def needs_splitting(self, subtitle: str) -> bool:
+        """Check if subtitle needs to be split due to length"""
+        length = self._calculate_display_length(subtitle)
+        return length > 20  # Maximum 20 characters
+
+    def setup_logging(self) -> str:
+        """Setup logging configuration"""
+        # Create logs directory
+        logs_dir = self.project_folder / "logs"
+        logs_dir.mkdir(exist_ok=True)
+
+        # Create log filename with timestamp
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = logs_dir / f"video_generation_{timestamp}.log"
+
+        # Configure logging
+        import logging
+        import sys
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_file, encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+
+        return str(log_file)
+
+    def _clean_punctuation(self, text: str) -> str:
+        """Clean punctuation issues in text"""
+        # Remove duplicate punctuation
+        text = re.sub(r'[。！？]{2,}', lambda m: m.group(0)[0], text)
+
+        # Add space between Chinese and English
+        text = re.sub(r'([\u4e00-\u9fff])([a-zA-Z])', r'\1 \2', text)
+        text = re.sub(r'([a-zA-Z])([\u4e00-\u9fff])', r'\1 \2', text)
+
+        return text
+
+    def _calculate_display_length(self, text: str) -> int:
+        """Calculate display length considering Chinese characters take 2x space"""
+        chinese_count = sum(1 for char in text if '\u4e00' <= char <= '\u9fff')
+        english_count = len(text) - chinese_count
+        return chinese_count * 2 + english_count
