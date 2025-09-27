@@ -36,7 +36,9 @@ import io
 import asyncio
 
 # Enhanced title visibility
-ENHANCED_TITLES_AVAILABLE = importlib.util.find_spec("enhanced_title_visibility") is not None
+ENHANCED_TITLES_AVAILABLE = (
+    importlib.util.find_spec("enhanced_title_visibility") is not None
+)
 
 # Type annotations for MoviePy objects
 ClipType = TypeVar("ClipType")
@@ -1252,7 +1254,6 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 if len(result) > 1:
                     return result
 
-    
         # First, try to split at major sentence endings (periods, exclamation, question marks)
         major_splits = ["。", "！", "？", ".", "!", "?"]
         for char in major_splits:
@@ -4027,10 +4028,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     start_clip = start_clip.without_audio()
                 # Add title to start clip if we have a title
                 if self.args.title:
-                    use_full_duration = getattr(self.args, "keep_title", False)
-                    start_clip = self.add_title(
-                        start_clip, use_full_duration=use_full_duration
-                    )
+                    start_clip = self.add_title(start_clip, use_full_duration=True)
                 final_clips.append(start_clip)
                 self.logger.info(f"Added start clip: {start_clip.duration:.2f}s")
             else:
