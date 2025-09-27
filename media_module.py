@@ -4,16 +4,10 @@ Media Processing Module - Handles media file operations
 Damn, don't mess with the media processing unless you know what you're doing!
 """
 
-import os
 import random
-import logging
 import numpy as np
-from pathlib import Path
-from typing import List, Optional
 
-from moviepy.editor import (
-    VideoFileClip, ImageClip, concatenate_videoclips
-)
+from moviepy import VideoFileClip, concatenate_videoclips
 
 
 class MediaProcessor:
@@ -29,7 +23,7 @@ class MediaProcessor:
 
         # Get project paths
         paths = config_manager.get_project_paths()
-        self.media_folder = paths['media']
+        self.media_folder = paths["media"]
 
         # Media files list
         self.media_files = []
@@ -39,24 +33,36 @@ class MediaProcessor:
     def scan_media_files(self):
         """Scan media folder and identify special files"""
         # Find all media files (videos and images)
-        media_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv',
-                          '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'}
+        media_extensions = {
+            ".mp4",
+            ".avi",
+            ".mov",
+            ".mkv",
+            ".wmv",
+            ".flv",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".bmp",
+            ".tiff",
+        }
 
         all_files = []
         for file_path in self.media_folder.iterdir():
             if file_path.suffix.lower() in media_extensions:
                 # Check for special files
-                if file_path.stem.lower() in ['start', 'starting']:
+                if file_path.stem.lower() in ["start", "starting"]:
                     self.start_file = file_path
-                elif file_path.stem.lower() == 'closing':
+                elif file_path.stem.lower() == "closing":
                     self.closing_file = file_path
                 else:
                     all_files.append(file_path)
 
         # Sort media files according to the specified method
-        if self.args.sort == 'alphnum':
+        if self.args.sort == "alphnum":
             all_files.sort(key=lambda x: x.name.lower())
-        elif self.args.sort == 'random':
+        elif self.args.sort == "random":
             random.shuffle(all_files)
 
         self.media_files = all_files
@@ -78,14 +84,22 @@ class MediaProcessor:
             test_clip = VideoFileClip(str(file_path))
 
             # Check if duration is valid
-            if not hasattr(test_clip, 'duration') or test_clip.duration is None or test_clip.duration <= 0:
-                self.logger.warning(f"Invalid duration for {file_path}: {getattr(test_clip, 'duration', 'unknown')}")
+            if (
+                not hasattr(test_clip, "duration")
+                or test_clip.duration is None
+                or test_clip.duration <= 0
+            ):
+                self.logger.warning(
+                    f"Invalid duration for {file_path}: {getattr(test_clip, 'duration', 'unknown')}"
+                )
                 test_clip.close()
                 return None
 
             # Check if file is too long (might be corrupted)
             if test_clip.duration > 3600:  # More than 1 hour
-                self.logger.warning(f"File seems too long ({test_clip.duration:.2f}s), might be corrupted: {file_path}")
+                self.logger.warning(
+                    f"File seems too long ({test_clip.duration:.2f}s), might be corrupted: {file_path}"
+                )
                 test_clip.close()
                 return None
 
@@ -93,25 +107,35 @@ class MediaProcessor:
             if test_clip.duration > max_duration_check:
                 # Try to read a frame from the beginning
                 try:
-                    test_clip.subclip(0, min(1.0, test_clip.duration)).close()
+                    subclip = test_clip.subclipped(0, min(1.0, test_clip.duration))
+                    if subclip:
+                        subclip.close()
                 except Exception as frame_error:
-                    self.logger.warning(f"Failed to read initial frames from {file_path}: {frame_error}")
+                    self.logger.warning(
+                        f"Failed to read initial frames from {file_path}: {frame_error}"
+                    )
                     test_clip.close()
                     return None
 
                 # Try to read a frame from near the end to detect corruption
                 try:
                     end_check_start = max(0, test_clip.duration - max_duration_check)
-                    test_clip.subclip(end_check_start, test_clip.duration).close()
+                    subclip = test_clip.subclipped(end_check_start, test_clip.duration)
+                    if subclip:
+                        subclip.close()
                 except Exception as frame_error:
                     # Don't fail completely for end-frame issues - many files have this problem
-                    self.logger.info(f"Minor corruption detected at end of {file_path} (ignoring): {frame_error}")
+                    self.logger.info(
+                        f"Minor corruption detected at end of {file_path} (ignoring): {frame_error}"
+                    )
                     # Continue with the clip - it's still usable
 
             # If all checks pass, return the clip without resizing for now
             # TEMPORARY: Disabled mobile aspect ratio resizing due to frame read issues
             final_clip = test_clip
-            self.logger.info(f"Successfully loaded video clip: {file_path} ({final_clip.duration:.2f}s) [resizing disabled]")
+            self.logger.info(
+                f"Successfully loaded video clip: {file_path} ({final_clip.duration:.2f}s) [resizing disabled]"
+            )
             return final_clip
 
         except Exception as e:
@@ -132,8 +156,14 @@ class MediaProcessor:
         valid_clips = []
         for i, clip in enumerate(clips):
             # First check basic properties
-            if not hasattr(clip, 'duration') or clip.duration is None or clip.duration <= 0:
-                self.logger.warning(f"Skipping invalid clip {i}: duration={getattr(clip, 'duration', 'unknown')}")
+            if (
+                not hasattr(clip, "duration")
+                or clip.duration is None
+                or clip.duration <= 0
+            ):
+                self.logger.warning(
+                    f"Skipping invalid clip {i}: duration={getattr(clip, 'duration', 'unknown')}"
+                )
                 continue
 
             # Test if the clip can actually be read
@@ -141,16 +171,22 @@ class MediaProcessor:
                 # Try to get frame at the beginning of the clip
                 test_frame = clip.get_frame(0.0)
                 if test_frame is None or not isinstance(test_frame, np.ndarray):
-                    self.logger.warning(f"Skipping clip {i}: cannot read frames at start")
+                    self.logger.warning(
+                        f"Skipping clip {i}: cannot read frames at start"
+                    )
                     continue
 
                 # Additional validation - check if frame has proper dimensions
                 if len(test_frame.shape) != 3 or test_frame.shape[2] not in [3, 4]:
-                    self.logger.warning(f"Skipping clip {i}: invalid frame format {test_frame.shape}")
+                    self.logger.warning(
+                        f"Skipping clip {i}: invalid frame format {test_frame.shape}"
+                    )
                     continue
 
             except Exception as frame_error:
-                self.logger.warning(f"Skipping clip {i}: frame read error - {frame_error}")
+                self.logger.warning(
+                    f"Skipping clip {i}: frame read error - {frame_error}"
+                )
                 continue
 
             # If all checks pass, add to valid clips
@@ -179,7 +215,9 @@ class MediaProcessor:
                 if test_frame is None or not isinstance(test_frame, np.ndarray):
                     raise ValueError("Cannot read frames from concatenated clip")
             except Exception as frame_error:
-                raise ValueError(f"Cannot read frames from concatenated clip: {frame_error}")
+                raise ValueError(
+                    f"Cannot read frames from concatenated clip: {frame_error}"
+                )
 
             self.logger.info(f"Successfully concatenated {len(valid_clips)} clips")
             return result
@@ -190,7 +228,9 @@ class MediaProcessor:
         try:
             self.logger.info("Attempting concatenation with chain method...")
             result = concatenate_videoclips(valid_clips, method="chain")
-            self.logger.info(f"Successfully concatenated {len(valid_clips)} clips with chain method")
+            self.logger.info(
+                f"Successfully concatenated {len(valid_clips)} clips with chain method"
+            )
             return result
         except Exception as e:
             self.logger.warning(f"Chain concatenation failed: {e}")
@@ -199,11 +239,15 @@ class MediaProcessor:
         try:
             self.logger.info("Attempting manual concatenation approach...")
             # For now, just return the first valid clip as fallback
-            self.logger.warning("Concatenation failed, using first valid clip as fallback")
+            self.logger.warning(
+                "Concatenation failed, using first valid clip as fallback"
+            )
             return valid_clips[0]
         except Exception as e:
             self.logger.error(f"Manual concatenation also failed: {e}")
-            raise ValueError(f"Failed to concatenate clips after multiple attempts: {e}")
+            raise ValueError(
+                f"Failed to concatenate clips after multiple attempts: {e}"
+            )
 
     def _resize_to_mobile_aspect_ratio(self, clip):
         """Resize video clip to mobile portrait 9:16 aspect ratio with center scaling"""
@@ -218,7 +262,7 @@ class MediaProcessor:
                 return clip
 
             # Target mobile portrait resolution (9:16) - width:height = 9:16
-            target_width = 1080   # Standard mobile portrait width
+            target_width = 1080  # Standard mobile portrait width
             target_height = 1920  # Standard mobile portrait height
 
             # Get original clip dimensions
@@ -228,11 +272,15 @@ class MediaProcessor:
             self.logger.info(f"Original dimensions: {original_width}x{original_height}")
 
             # Check if clip is smaller than target mobile screen
-            is_smaller = (original_width < target_width) or (original_height < target_height)
+            is_smaller = (original_width < target_width) or (
+                original_height < target_height
+            )
 
             if is_smaller:
                 # Clip is smaller than screen - center and scale up until smaller dimension covers screen
-                self.logger.info("Clip is smaller than mobile screen, centering and scaling up...")
+                self.logger.info(
+                    "Clip is smaller than mobile screen, centering and scaling up..."
+                )
 
                 # Calculate scale factor needed to cover the screen
                 # We want the smaller dimension to exactly match the target
@@ -246,7 +294,9 @@ class MediaProcessor:
                 scaled_width = int(original_width * scale_factor)
                 scaled_height = int(original_height * scale_factor)
 
-                self.logger.info(f"Scaling up by factor {scale_factor:.2f} to {scaled_width}x{scaled_height}")
+                self.logger.info(
+                    f"<<<Scaling up by factor {scale_factor:.2f} to {scaled_width}x{scaled_height}"
+                )
 
                 # Resize the clip
                 scaled_clip = clip.resize((scaled_width, scaled_height))
@@ -261,7 +311,9 @@ class MediaProcessor:
 
                 final_clip = scaled_clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
 
-                self.logger.info(f"Cropped to mobile portrait: {target_width}x{target_height}")
+                self.logger.info(
+                    f"Cropped to mobile portrait: {target_width}x{target_height}"
+                )
 
                 # Clean up
                 scaled_clip.close()
@@ -270,10 +322,12 @@ class MediaProcessor:
 
             else:
                 # Clip is larger than or equal to screen - crop to 9:16 aspect ratio
-                self.logger.info("Clip is larger than mobile screen, cropping to 9:16 aspect ratio...")
+                self.logger.info(
+                    "Clip is larger than mobile screen, cropping to 9:16 aspect ratio..."
+                )
 
                 # Target aspect ratio for mobile portrait: 9:16 (width:height)
-                target_aspect = 9/16  # 0.5625
+                target_aspect = 9 / 16  # 0.5625
                 original_aspect = original_width / original_height
 
                 if original_aspect > target_aspect:
@@ -301,7 +355,9 @@ class MediaProcessor:
                 # Resize to target mobile resolution
                 final_clip = cropped_clip.resize((target_width, target_height))
 
-                self.logger.info(f"Cropped and resized to mobile portrait: {target_width}x{target_height}")
+                self.logger.info(
+                    f"Cropped and resized to mobile portrait: {target_width}x{target_height}"
+                )
 
                 # Clean up
                 cropped_clip.close()
@@ -311,3 +367,4 @@ class MediaProcessor:
         except Exception as e:
             self.logger.error(f"Error in _resize_to_mobile_aspect_ratio: {e}")
             return clip
+

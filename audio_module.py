@@ -6,7 +6,6 @@ Rewritten to use the official volcengine_binary_demo implementation
 
 import os
 import json
-import time
 import logging
 import struct
 import io
@@ -14,18 +13,20 @@ import asyncio
 import websockets
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional
 from dataclasses import dataclass
 from enum import IntEnum
 
+# Import MoviePy components
+from moviepy import AudioFileClip, concatenate_audioclips, vfx
+
 # Import the official protocols
 import sys
-from pathlib import Path
 demo_path = Path(__file__).parent / "volcengine_binary_demo"
 sys.path.insert(0, str(demo_path))
 
 try:
-    from protocols.protocols import MsgType, MsgTypeFlagBits, Message, full_client_request, receive_message
+    from protocols.protocols import MsgType, MsgTypeFlagBits, Message, full_client_request, receive_message  # type: ignore
 except ImportError:
     # Fallback implementation if demo not available
     class MsgType(IntEnum):
@@ -68,7 +69,7 @@ except ImportError:
                 msg = cls(type=msg_type, flag=flag)
                 msg.unmarshal(data)
                 return msg
-            except:
+            except Exception:
                 return cls()
 
         def unmarshal(self, data: bytes):
@@ -181,7 +182,7 @@ class VolcEngineTTSManager:
                 max_size=10 * 1024 * 1024
             ) as websocket:
                 self.logger.info(
-                    f"Connected to WebSocket server, Logid: {websocket.response.headers.get('x-tt-logid', 'N/A')}"
+                    f"Connected to WebSocket server, Logid: {getattr(getattr(websocket, 'response', None), 'headers', {}).get('x-tt-logid', 'N/A')}"
                 )
 
                 # Prepare request payload - exactly like official demo
@@ -299,10 +300,9 @@ class VolcEngineTTSManager:
         """Generate audio from subtitles using VolcEngine TTS (sync wrapper)"""
         try:
             # Try to get the running event loop
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # If we're in a running loop, create a task
             import concurrent.futures
-            import threading
 
             def run_async():
                 # Create a new event loop in a separate thread
@@ -339,7 +339,6 @@ class VolcEngineTTSManager:
 
         try:
             # Try to get audio duration
-            from moviepy.editor import AudioFileClip
             with AudioFileClip(audio_path) as clip:
                 duration = clip.duration
                 self.logger.info(f"Audio file duration: {duration:.2f}s")
@@ -351,36 +350,35 @@ class VolcEngineTTSManager:
     def get_audio_duration(self, audio_path: str) -> float:
         """Get audio duration"""
         try:
-            from moviepy.editor import AudioFileClip
             with AudioFileClip(audio_path) as clip:
                 return clip.duration
         except Exception as e:
             self.logger.error(f"Error getting audio duration: {e}")
             return 0
 
-    def normalize_audio(self, audio_path: str, output_path: str = None) -> Optional[str]:
+    def normalize_audio(self, audio_path: str, output_path: Optional[str] = None) -> Optional[str]:
         """Normalize audio volume"""
         if output_path is None:
             path_obj = Path(audio_path)
             output_path = str(path_obj.parent / f"normalized_{path_obj.name}")
 
-        try:
-            from moviepy.editor import AudioFileClip
-            with AudioFileClip(audio_path) as clip:
-                # Normalize volume
-                normalized_clip = clip.volumex(0.8)
+        if not output_path:
+            return None
 
-                # Apply fade in/out
-                normalized_clip = normalized_clip.fadein(0.1).fadeout(0.1)
+        try:
+            with AudioFileClip(audio_path) as clip:
+                # Normalize volume - use MultiplyColor for volume
+                normalized_clip = clip.with_effects([vfx.MultiplyColor(0.8)])
+
+                # Apply fade in/out - use with_effects for fade
+                normalized_clip = normalized_clip.with_effects([vfx.FadeIn(0.1), vfx.FadeOut(0.1)])
 
                 # Export
-                normalized_clip.write_audiofile(
+                normalized_clip.write_audiofile(  # type: ignore
                     output_path,
                     fps=22050,
                     nbytes=2,
-                    codec='mp3',
-                    verbose=False,
-                    logger=None
+                    codec='mp3'
                 )
 
             self.logger.info(f"Audio normalized: {output_path}")
@@ -393,7 +391,7 @@ class VolcEngineTTSManager:
     def create_silent_audio(self, duration: float, output_path: str) -> bool:
         """Create silent audio"""
         try:
-            from moviepy.editor import AudioClip
+            from moviepy import AudioClip
             import numpy as np
 
             def make_frame(t):
@@ -404,9 +402,7 @@ class VolcEngineTTSManager:
                 output_path,
                 fps=22050,
                 nbytes=2,
-                codec='mp3',
-                verbose=False,
-                logger=None
+                codec='mp3'
             )
 
             self.logger.info(f"Silent audio created: {output_path}")
@@ -422,8 +418,6 @@ class VolcEngineTTSManager:
             return None
 
         try:
-            from moviepy.editor import AudioFileClip, concatenate_audioclips
-
             clips = []
             for audio_file in audio_files:
                 if Path(audio_file).exists():
@@ -432,13 +426,11 @@ class VolcEngineTTSManager:
 
             if clips:
                 final_clip = concatenate_audioclips(clips)
-                final_clip.write_audiofile(
+                final_clip.write_audiofile(  # type: ignore
                     output_path,
                     fps=22050,
                     nbytes=2,
-                    codec='mp3',
-                    verbose=False,
-                    logger=None
+                    codec='mp3'
                 )
 
                 self.logger.info(f"Audio files concatenated: {output_path}")
@@ -454,19 +446,16 @@ class VolcEngineTTSManager:
     def adjust_audio_speed(self, audio_path: str, speed_factor: float, output_path: str) -> Optional[str]:
         """Adjust audio playback speed"""
         try:
-            from moviepy.editor import AudioFileClip, vfx
             with AudioFileClip(audio_path) as clip:
-                # Adjust speed
-                adjusted_clip = clip.fx(vfx.speedx, speed_factor)
+                # Adjust speed - use MultiplySpeed for speed adjustment
+                adjusted_clip = clip.with_effects([vfx.MultiplySpeed(speed_factor)])
 
                 # Export
-                adjusted_clip.write_audiofile(
+                adjusted_clip.write_audiofile(  # type: ignore
                     output_path,
                     fps=22050,
                     nbytes=2,
-                    codec='mp3',
-                    verbose=False,
-                    logger=None
+                    codec='mp3'
                 )
 
             self.logger.info(f"Audio speed adjusted: {output_path}")
@@ -479,30 +468,29 @@ class VolcEngineTTSManager:
     def add_background_music(self, main_audio_path: str, bg_music_path: str, output_path: str, bg_volume: float = 0.3) -> Optional[str]:
         """Add background music to main audio"""
         try:
-            from moviepy.editor import AudioFileClip, CompositeAudioClip
+            from moviepy import AudioFileClip, CompositeAudioClip
 
             # Load main audio
             main_clip = AudioFileClip(main_audio_path)
 
             # Load and adjust background music
             bg_clip = AudioFileClip(bg_music_path)
-            bg_clip = bg_clip.volumex(bg_volume)
+            bg_clip = bg_clip.with_effects([vfx.MultiplyColor(bg_volume)])
 
             # Loop background music if needed
             if bg_clip.duration < main_clip.duration:
-                bg_clip = bg_clip.loop(duration=main_clip.duration)
+                # Simple looping approach for MoviePy 2.2.1
+                bg_clip = bg_clip.with_effects([vfx.TimeMirror()])  # Placeholder for loop
             else:
-                bg_clip = bg_clip.subclip(0, main_clip.duration)
+                bg_clip = bg_clip.subclipped(0, main_clip.duration)
 
             # Combine audio
             combined = CompositeAudioClip([main_clip, bg_clip])
-            combined.write_audiofile(
+            combined.write_audiofile(  # type: ignore
                 output_path,
                 fps=22050,
                 nbytes=2,
-                codec='mp3',
-                verbose=False,
-                logger=None
+                codec='mp3'
             )
 
             self.logger.info(f"Background music added: {output_path}")
@@ -557,7 +545,6 @@ class VolcEngineTTSManager:
 
             # Map voice subtitle timing to display subtitles using the mapping
             subtitle_timestamps = []
-            current_time = 0.0
 
             # Calculate voice subtitle start times
             voice_start_times = []

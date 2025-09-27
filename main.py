@@ -4,29 +4,18 @@ AI Video Generator - Command line tool for creating videos from media materials
 Damn, this is gonna be one hell of a video generator! Don't f*cking pass invalid parameters!
 """
 
-# Enhanced title visibility
-try:
-    from enhanced_title_visibility import add_prominent_title_to_clip
-
-    ENHANCED_TITLES_AVAILABLE = True
-except ImportError:
-    ENHANCED_TITLES_AVAILABLE = False
-
 import os
 import sys
 import random
 import argparse
-import re
 import logging
 import time
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import TypeVar
 import json
-import requests
 from datetime import datetime
 import numpy as np
-
-import click
+import importlib.util
 from moviepy import (
     VideoFileClip,
     AudioFileClip,
@@ -35,12 +24,8 @@ from moviepy import (
     concatenate_videoclips,
     vfx,
     ImageClip,
-    ColorClip,
-    concatenate_audioclips,
-    AudioClip,
 )
 from moviepy.video.fx import FadeIn, FadeOut
-from pydub import AudioSegment
 import openai
 import dashscope
 from dotenv import load_dotenv
@@ -49,7 +34,17 @@ import uuid
 import struct
 import io
 import asyncio
-import json
+
+# Enhanced title visibility
+ENHANCED_TITLES_AVAILABLE = importlib.util.find_spec("enhanced_title_visibility") is not None
+
+# Type annotations for MoviePy objects
+ClipType = TypeVar("ClipType")
+VideoClipType = TypeVar("VideoClipType")
+TextClipType = TypeVar("TextClipType")
+ImageClipType = TypeVar("ImageClipType")
+CompositeVideoClipType = TypeVar("CompositeVideoClipType")
+AudioClipType = TypeVar("AudioClipType")
 
 # Load environment variables
 load_dotenv()
@@ -448,10 +443,15 @@ class VideoGenerator:
             prompt_content = f.read()
 
         # Generate subtitles using litellm API
+        llm_config = None
+        model_name = None
+        provider = None
         try:
             # Get LLM configuration from command line argument
             provider = getattr(self.args, "llm_provider", "qwen")
             llm_config = self.get_llm_model_config(provider)
+            if llm_config:
+                model_name = llm_config.get("model_name", "unknown")
 
             # Check if litellm configuration is available
             api_base = os.getenv("LITELLM_API_BASE_URL", "http://localhost:4000")
@@ -577,6 +577,8 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             # Parse subtitles from response
             subtitles_text = response.choices[0].message.content
+            if subtitles_text is None:
+                subtitles_text = ""
             raw_subtitles = [
                 line.strip() for line in subtitles_text.split("\n") if line.strip()
             ]
@@ -619,9 +621,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 print(
                     "This might be an API key issue. Please check your LITELLM_MASTER_KEY in .env file"
                 )
-                if llm_config["env_key"]:
+                if llm_config and llm_config.get("env_key"):
                     print(
-                        f"Also check {llm_config['env_key']} for {llm_config['display_name']}"
+                        f"Also check {llm_config.get('env_key')} for {llm_config.get('display_name', 'unknown')}"
                     )
             elif "rate" in error_str or "limit" in error_str:
                 print("This might be a rate limit issue. Please try again later.")
@@ -641,13 +643,18 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             print(
                 "- LITELLM_API_BASE_URL: litellm server URL (default: http://localhost:4000)"
             )
-            if llm_config["env_key"]:
+            if llm_config and llm_config.get("env_key"):
                 print(
-                    f"- {llm_config['env_key']}: API key for {llm_config['display_name']}"
+                    f"- {llm_config.get('env_key')}: API key for {llm_config.get('display_name', 'unknown')}"
                 )
             else:
+                display_name = (
+                    llm_config.get("display_name", "unknown")
+                    if llm_config
+                    else "unknown"
+                )
                 print(
-                    f"- No additional API key needed for {llm_config['display_name']} (local model)"
+                    f"- No additional API key needed for {display_name} (local model)"
                 )
             print(
                 "Make sure litellm server is running: python ~/dev/litellm/litellm.py server"
@@ -748,7 +755,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             async with websockets.connect(
                 endpoint, additional_headers=headers, max_size=10 * 1024 * 1024
             ) as websocket:
-                print(f"Connected to Volcengine TTS WebSocket")
+                print("Connected to Volcengine TTS WebSocket")
 
                 # Send the TTS request
                 await self._volcengine_full_client_request(
@@ -857,16 +864,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             # Read version and header size
             version_and_header_size = buffer.read(1)[0]
-            version = version_and_header_size >> 4
             header_size = version_and_header_size & 0b00001111
 
             # Skip second byte
             buffer.read(1)
 
             # Read serialization and compression methods
-            serialization_compression = buffer.read(1)[0]
-            serialization = serialization_compression >> 4
-            compression = serialization_compression & 0b00001111
+            buffer.read(1)
 
             # Skip header padding
             read_size = 3
@@ -941,7 +945,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
     def _calculate_subtitle_timestamps(self):
         """Calculate intelligent timestamps for display subtitles based on voice subtitles and audio duration"""
-        if not hasattr(self, "audio_file") or not self.audio_file.exists():
+        if (
+            not hasattr(self, "audio_file")
+            or self.audio_file is None
+            or not self.audio_file.exists()
+        ):
             raise ValueError("Audio file not available for timestamp calculation")
 
         try:
@@ -986,7 +994,6 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             # Map voice subtitle timing to display subtitles using the mapping created during optimization
             self.subtitle_timestamps = []
-            current_time = 0.0
 
             # Calculate voice subtitle start times
             voice_start_times = []
@@ -1006,7 +1013,6 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             for voice_idx, display_indices in display_groups.items():
                 voice_start_time = voice_start_times[voice_idx]
                 voice_duration = voice_estimates[voice_idx]
-                voice_end_time = voice_start_time + voice_duration
 
                 # Distribute voice subtitle time among its display subtitles
                 num_display_subtitles = len(display_indices)
@@ -1058,7 +1064,6 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             return 1.0  # Minimum duration
 
         # Count different types of characters
-        total_chars = len(text)
         chinese_chars = sum(1 for char in text if self._contains_chinese(char))
         english_words = len(
             [word for word in text.split() if not self._contains_chinese(word)]
@@ -1247,37 +1252,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 if len(result) > 1:
                     return result
 
-        # Comprehensive list of Chinese and English punctuation for splitting
-        split_punctuation = [
-            "。",
-            "！",
-            "？",  # Chinese sentence endings (keep these)
-            ".",
-            "!",
-            "?",  # English sentence endings (keep these)
-            "；",
-            ";",  # Semicolons
-            "，",
-            ",",  # Commas
-            "、",  # Chinese enumeration comma
-            "：",
-            ":",  # Colons
-            "·",
-            "•",  # Dots/bullets
-            "（",
-            "(",
-            "）",
-            ")",  # Parentheses
-            "【",
-            "[",
-            "】",
-            "]",  # Brackets
-            "《",
-            "<",
-            "》",
-            ">",  # Angle brackets
-        ]
-
+    
         # First, try to split at major sentence endings (periods, exclamation, question marks)
         major_splits = ["。", "！", "？", ".", "!", "?"]
         for char in major_splits:
@@ -1389,7 +1364,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         return parts
 
-    def _split_by_punctuation(self, text):
+    def _split_by_punctuation_marks(self, text):
         """Split text by punctuation marks (preserving question marks and exclamation marks)"""
         if not text:
             return []
@@ -1621,7 +1596,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
     def _create_fallback_timestamps(self):
         """Create fallback timestamps with equal distribution based on display subtitles"""
-        if not hasattr(self, "audio_file") or not self.audio_file.exists():
+        if (
+            not hasattr(self, "audio_file")
+            or self.audio_file is None
+            or not self.audio_file.exists()
+        ):
             return
 
         try:
@@ -1742,11 +1721,15 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 scaled_height = int(original_height * scale_factor)
 
                 self.logger.info(
-                    f"Scaling up by factor {scale_factor:.2f} to {scaled_width}x{scaled_height}"
+                    f">>>Scaling up by factor {scale_factor:.2f} to {scaled_width}x{scaled_height}"
                 )
 
                 # Resize the clip
-                scaled_clip = clip.resize((scaled_width, scaled_height))
+                print("HERE1")
+                scaled_clip = clip.with_effects(
+                    [vfx.Resize(new_size=(scaled_width, scaled_height))]
+                )
+                print("HERE2")
 
                 # Crop from center to target dimensions
                 x_center = scaled_width // 2
@@ -1756,7 +1739,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 y1 = max(0, y_center - target_height // 2)
                 y2 = min(scaled_height, y_center + target_height // 2)
 
-                final_clip = scaled_clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
+                final_clip = scaled_clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)
 
                 self.logger.info(
                     f"Cropped to mobile portrait: {target_width}x{target_height}"
@@ -1797,10 +1780,12 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     x2 = original_width
 
                 # Crop the clip to the target aspect ratio
-                cropped_clip = clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
+                cropped_clip = clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)
 
                 # Resize to target mobile resolution
-                final_clip = cropped_clip.resize((target_width, target_height))
+                final_clip = cropped_clip.with_effects(
+                    [vfx.Resize(new_size=(target_width, target_height))]
+                )
 
                 self.logger.info(
                     f"Cropped and resized to mobile portrait: {target_width}x{target_height}"
@@ -1847,21 +1832,28 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 return None
 
             # Quick check of first few frames
-            if test_clip.duration > max_duration_check:
+            if test_clip and test_clip.duration > max_duration_check:
                 # Try to read a frame from the beginning
                 try:
-                    test_clip.subclip(0, min(1.0, test_clip.duration)).close()
+                    subclip = test_clip.subclipped(0, min(1.0, test_clip.duration))
+                    if subclip:
+                        subclip.close()
                 except Exception as frame_error:
                     self.logger.warning(
                         f"Failed to read initial frames from {file_path}: {frame_error}"
                     )
-                    test_clip.close()
+                    if test_clip:
+                        test_clip.close()
                     return None
 
                 # Try to read a frame from near the end to detect corruption
                 try:
                     end_check_start = max(0, test_clip.duration - max_duration_check)
-                    test_clip.subclip(end_check_start, test_clip.duration).close()
+                    end_subclip = test_clip.subclipped(
+                        end_check_start, test_clip.duration
+                    )
+                    if end_subclip:
+                        end_subclip.close()
                 except Exception as frame_error:
                     # Don't fail completely for end-frame issues - many files have this problem
                     self.logger.info(
@@ -2090,7 +2082,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     )
                 else:
                     # Use part of the clip
-                    partial_clip = clip_to_repeat.subclip(0, remaining_duration)
+                    partial_clip = clip_to_repeat.subclipped(0, remaining_duration)
                     processed_clips.append(partial_clip)
                     self.logger.debug(
                         f"Added partial clip ({remaining_duration:.2f}s) from clip {clip_index % original_clip_count + 1}"
@@ -2169,7 +2161,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                         start_time = random.uniform(
                             0, full_clip.duration - clip_duration
                         )
-                        clip = full_clip.subclip(start_time, start_time + clip_duration)
+                        clip = full_clip.subclipped(
+                            start_time, start_time + clip_duration
+                        )
                         self.logger.debug(
                             f"Trimmed video clip: {clip_path} ({clip_duration:.2f}s from {start_time:.2f}s)"
                         )
@@ -2242,7 +2236,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                                         if (
                                             safe_end_time > 0.01
                                         ):  # Minimum duration check
-                                            partial_clip = full_clip.subclip(
+                                            partial_clip = full_clip.subclipped(
                                                 0, safe_end_time
                                             )
                                             # Verify the partial clip is valid
@@ -2384,7 +2378,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             # Check if title contains Chinese and use appropriate font
             full_title_text = self.args.title
-            if self._contains_chinese(full_title_text):
+            if clip and self._contains_chinese(full_title_text):
                 self.logger.info(f"Chinese text detected in title: '{full_title_text}'")
                 title_font = self._get_chinese_compatible_font(title_font)
                 if title_font is None:
@@ -2404,23 +2398,25 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 try:
                     # Test if the font is valid by trying to create a small text clip first
                     test_clip = TextClip(
+                        title_font,
                         "Test",
                         font_size=12,
                         color="white",
-                        font=title_font,
                         stroke_color="black",
                         stroke_width=1,
+                        method="label",
                     )
                     test_clip.close()
 
                     # Create the actual title clip
                     title_clip = TextClip(
+                        title_font,
                         line.strip(),
                         font_size=current_font_size,
                         color="yellow",
-                        font=title_font,
                         stroke_color="black",
                         stroke_width=4,
+                        method="label",
                     )
 
                     # Verify the clip was created successfully
@@ -2428,13 +2424,15 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                         raise ValueError("TextClip returned None")
 
                     # Position the title
-                    title_x = clip.w / 2 - title_clip.w / 2
-                    title_y = y_offset + i * (current_font_size + 10)
+                    if clip and title_clip:
+                        title_x = clip.w / 2 - title_clip.w / 2
+                        title_y = y_offset + i * (current_font_size + 10)
 
-                    title_clip = title_clip.with_position((title_x, title_y))
-                    # Show title only for the specified duration
-                    title_clip = title_clip.with_duration(title_duration)
-                    title_clips.append(title_clip)
+                        title_clip = title_clip.with_position((title_x, title_y))
+                        # Show title only for the specified duration
+                        title_clip = title_clip.with_duration(title_duration)
+                    if title_clip:
+                        title_clips.append(title_clip)
                 except Exception as text_error:
                     print(
                         f"Damn, title text clip creation failed for line '{line.strip()}': {text_error}"
@@ -2444,26 +2442,28 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                         fallback_font = "Arial-Bold"
                         self.logger.info(f"Trying fallback font: {fallback_font}")
                         title_clip = TextClip(
+                            fallback_font,
                             line.strip(),
                             font_size=current_font_size,
                             color="yellow",
-                            font=fallback_font,
                             stroke_color="black",
                             stroke_width=4,
+                            method="label",
                         )
 
                         if title_clip is None:
                             raise ValueError("Fallback TextClip returned None")
 
                         # Position the title
-                        title_x = clip.w / 2 - title_clip.w / 2
-                        title_y = y_offset + i * (current_font_size + 10)
+                        if clip and title_clip:
+                            title_x = clip.w / 2 - title_clip.w / 2
+                            title_y = y_offset + i * (current_font_size + 10)
 
-                        title_clip = title_clip.with_position((title_x, title_y))
-                        title_clip = title_clip.with_duration(title_duration)
-                        title_clips.append(title_clip)
+                            title_clip = title_clip.with_position((title_x, title_y))
+                            title_clip = title_clip.with_duration(title_duration)
+                            title_clips.append(title_clip)
                         self.logger.info(
-                            f"Successfully created title with fallback font"
+                            "Successfully created title with fallback font"
                         )
                     except Exception as fallback_error:
                         print(f"Damn, fallback font also failed: {fallback_error}")
@@ -2497,7 +2497,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                         )
 
                     # Create a version with title for the title duration
-                    clip_with_title = clip.subclip(0, title_duration)
+                    clip_with_title = clip.subclipped(0, title_duration)
                     if clip_with_title is None:
                         raise ValueError("clip_with_title is None after subclip")
 
@@ -2535,7 +2535,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     titled_clip = titled_clip.with_duration(title_duration)
 
                     # Create the remaining part of the clip without title
-                    remaining_clip = clip.subclip(title_duration)
+                    remaining_clip = clip.subclipped(title_duration)
                     if remaining_clip is None:
                         raise ValueError("remaining_clip is None after subclip")
 
@@ -2551,17 +2551,28 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
                     # Ensure the remaining clip maintains the original video content
                     # Create a composite clip for the remaining part to avoid black screen
-                    remaining_composite = CompositeVideoClip([remaining_clip])
-                    remaining_composite = remaining_composite.with_duration(
-                        remaining_clip.duration
-                    )
+                    remaining_composite = None
+                    if remaining_clip:
+                        remaining_composite = CompositeVideoClip([remaining_clip])
+                        remaining_composite = remaining_composite.with_duration(
+                            remaining_clip.duration
+                        )
 
                     # Return both clips concatenated
+                    clips_to_concat = [titled_clip]
+                    if remaining_composite:
+                        clips_to_concat.append(remaining_composite)
+
                     result = self._safe_concatenate_clips(
-                        [titled_clip, remaining_composite], method="compose"
+                        clips_to_concat, method="compose"
                     )
+                    remaining_duration = (
+                        remaining_composite.duration if remaining_composite else 0
+                    )
+                    titled_duration = titled_clip.duration if titled_clip else 0
+                    result_duration = result.duration if result else 0
                     self.logger.info(
-                        f"Created titled clip: {titled_clip.duration}s + remaining clip: {remaining_composite.duration}s = {result.duration}s"
+                        f"Created titled clip: {titled_duration}s + remaining clip: {remaining_duration}s = {result_duration}s"
                     )
                     return result
                 except Exception as subclip_error:
@@ -2576,8 +2587,12 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     all_clips = [c for c in all_clips if c is not None]
 
                     result = CompositeVideoClip(all_clips)
-                    result = result.with_duration(clip.duration)
-                    self.logger.info(f"Title covers entire clip: {result.duration}s")
+                    if clip:
+                        result = result.with_duration(clip.duration)
+                    if result:
+                        self.logger.info(
+                            f"Title covers entire clip: {result.duration}s"
+                        )
                     return result
                 except Exception as composite_error:
                     self.logger.error(
@@ -2661,13 +2676,14 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 # Test if the font can render Chinese characters with proper rendering check
                 test_text = "测试中文字体"
                 test_clip = TextClip(
+                    font,
                     test_text,
                     font_size=12,
                     color="white",
-                    font=font,
                     stroke_color="black",
                     stroke_width=1,
                     size=(200, 50),
+                    method="label",
                 )
 
                 # Create a black background to test rendering
@@ -2703,12 +2719,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 # Also try with a simpler test to see if the font exists at all
                 try:
                     simple_test = TextClip(
+                        font,
                         "Test",
                         font_size=12,
                         color="white",
-                        font=font,
                         stroke_color="black",
                         stroke_width=1,
+                        method="label",
                     )
                     simple_test.close()
                     self.logger.debug(f"Font {font} exists but can't render Chinese")
@@ -2727,12 +2744,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         # If no Chinese font works, try the default font
         try:
             test_clip = TextClip(
+                default_font,
                 "Test",
                 font_size=12,
                 color="white",
-                font=default_font,
                 stroke_color="black",
                 stroke_width=1,
+                method="label",
             )
             test_clip.close()
             self.logger.warning(f"No Chinese font found, using default: {default_font}")
@@ -2792,12 +2810,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     # Test if it works
                     try:
                         test_clip = TextClip(
+                            font,
                             "测试中文字体",
                             font_size=12,
                             color="white",
-                            font=font,
                             stroke_color="black",
                             stroke_width=1,
+                            method="label",
                         )
                         test_clip.close()
                         return font
@@ -2849,6 +2868,14 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.logger.info(f"Created SRT subtitle file: {srt_file_path}")
             self.logger.info(f"Total subtitles: {len(self.subtitle_timestamps)}")
 
+            # Convert seconds to SRT time format (HH:MM:SS,mmm)
+            def format_time(seconds):
+                hours = int(seconds // 3600)
+                minutes = int((seconds % 3600) // 60)
+                secs = int(seconds % 60)
+                milliseconds = int((seconds % 1) * 1000)
+                return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
+
             # Log first few subtitles for verification
             for i in range(min(3, len(self.subtitle_timestamps))):
                 sub = self.subtitle_timestamps[i]
@@ -2897,7 +2924,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     break
 
         if chinese_chars:
-            print(f"Chinese characters detected: {chinese_chars}")
+            # print(f">>>Chinese characters detected: {chinese_chars}")
             return True
         return False
 
@@ -2927,17 +2954,16 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             max_text_width = int(clip.w * 0.65)  # Reduced to 65% for mobile safety
 
             subtitle_clip = TextClip(
+                subtitle_font,
                 subtitle_text,
                 font_size=font_size,
                 color="white",
-                font=subtitle_font,
                 stroke_color="black",
                 stroke_width=1,
                 size=(max_text_width, None),  # Strict width limit
                 method="caption",  # Enable text wrapping
-                align="center",  # Center alignment
+                text_align="center",  # Center alignment
                 transparent=True,
-                kerning=-1,  # Reduce character spacing
             )
 
             # Position subtitle (centered)
@@ -2967,43 +2993,44 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     f"Emergency font size reduction: {font_size} → {emergency_font_size}"
                 )
                 subtitle_clip = TextClip(
+                    subtitle_font,
                     subtitle_text,
                     font_size=emergency_font_size,
                     color="white",
-                    font=subtitle_font,
                     stroke_color="black",
                     stroke_width=1,
                     size=(max_text_width, None),
                     method="caption",
-                    align="center",
+                    text_align="center",
                     transparent=True,
-                    kerning=-1,
                 )
-                subtitle_x = clip.w / 2 - subtitle_clip.w / 2
+                subtitle_x = clip.w / 2 - subtitle_clip.w / 2  # type: ignore
 
                 # Final safety check - if still too wide, force width scaling
-                if subtitle_clip.w > max_text_width:
+                if subtitle_clip.w > max_text_width:  # type: ignore
                     self.logger.error(
-                        f"Text still exceeds width after emergency reduction: {subtitle_clip.w} > {max_text_width}"
+                        f"Text still exceeds width after emergency reduction: {subtitle_clip.w} > {max_text_width}"  # type: ignore
                     )
                     # Force scale the text clip width to fit exactly
-                    force_scale = max_text_width / subtitle_clip.w
-                    subtitle_clip = subtitle_clip.resize(force_scale)
-                    subtitle_x = clip.w / 2 - subtitle_clip.w / 2
+                    force_scale = max_text_width / subtitle_clip.w  # type: ignore
+                    subtitle_clip = subtitle_clip.with_effects(
+                        [vfx.Resize(new_size=force_scale)]
+                    )
+                    subtitle_x = clip.w / 2 - subtitle_clip.w / 2  # type: ignore
                     self.logger.info(f"Applied forced scaling: {force_scale:.2f}x")
                     self.logger.error(
-                        f"WARNING: Text was scaled down to fit - consider shortening subtitle text"
+                        "WARNING: Text was scaled down to fit - consider shortening subtitle text"
                     )
                 else:
                     self.logger.info(
                         f"Reduced font size to {emergency_font_size} to fit text"
                     )
 
-            subtitle_clip = subtitle_clip.with_position((subtitle_x, subtitle_y))
+            subtitle_clip = subtitle_clip.with_position((subtitle_x, subtitle_y))  # type: ignore
 
             result = CompositeVideoClip([clip, subtitle_clip])
             # Ensure the composite clip has the same duration as the original
-            result = result.with_duration(clip.duration)
+            result = result.with_duration(clip.duration)  # type: ignore
             return result
 
         except Exception as e:
@@ -3113,17 +3140,16 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                             )
 
                             line_clip = TextClip(
+                                subtitle_font,
                                 line_text,
                                 font_size=font_size,
                                 color="white",
-                                font=subtitle_font,
                                 stroke_color="black",
                                 stroke_width=1,
                                 size=(max_text_width, None),  # Strict width limit
                                 method="caption",  # Enable text wrapping
-                                align="center",  # Center alignment
+                                text_align="center",  # Center alignment
                                 transparent=True,
-                                kerning=-1,  # Reduce character spacing slightly
                             )
 
                             # Log actual rendered text width
@@ -3164,43 +3190,45 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                                 )
 
                                 line_clip = TextClip(
+                                    subtitle_font,
                                     line_text,
                                     font_size=emergency_font_size,
                                     color="white",
-                                    font=subtitle_font,
                                     stroke_color="black",
                                     stroke_width=1,
                                     size=(max_text_width, None),
                                     method="caption",
-                                    align="center",
+                                    text_align="center",
                                     transparent=True,
-                                    kerning=-1,
                                 )
                                 # Recalculate position with new size
-                                subtitle_x = video_clip.w / 2 - line_clip.w / 2
+                                subtitle_x = video_clip.w / 2 - line_clip.w / 2  # type: ignore
 
                                 # Final safety check - if still too wide, force width scaling
-                                if line_clip.w > max_text_width:
+                                if line_clip.w > max_text_width:  # type: ignore
                                     self.logger.error(
-                                        f"Text line still exceeds width after emergency reduction: {line_clip.w} > {max_text_width}"
+                                        f"Text line still exceeds width after emergency reduction: {line_clip.w} > {max_text_width}"  # type: ignore
                                     )
                                     # Force scale the text clip width to fit exactly
-                                    force_scale = max_text_width / line_clip.w
-                                    line_clip = line_clip.resize(force_scale)
-                                    subtitle_x = video_clip.w / 2 - line_clip.w / 2
+                                    force_scale = max_text_width / line_clip.w  # type: ignore
+                                    line_clip = line_clip.with_effects(
+                                        [vfx.Resize(new_size=force_scale)]
+                                    )
+                                    subtitle_x = video_clip.w / 2 - line_clip.w / 2  # type: ignore
                                     self.logger.info(
                                         f"Applied forced scaling: {force_scale:.2f}x"
                                     )
                                     self.logger.error(
-                                        f"WARNING: Text was scaled down to fit - consider shortening subtitle text"
+                                        "WARNING: Text was scaled down to fit - consider shortening subtitle text"
                                     )
 
-                            line_clip = line_clip.with_position(
-                                (subtitle_x, subtitle_y)
-                            )
-                            line_clip = line_clip.with_start(start_time)
-                            line_clip = line_clip.with_duration(subtitle_duration)
-                            text_clips.append(line_clip)
+                            if line_clip:
+                                line_clip = line_clip.with_position(  # type: ignore
+                                    (subtitle_x, subtitle_y)
+                                )
+                                line_clip = line_clip.with_start(start_time)  # type: ignore
+                                line_clip = line_clip.with_duration(subtitle_duration)  # type: ignore
+                                text_clips.append(line_clip)
 
                         subtitle_clips.extend(text_clips)
                         continue  # Skip the single-line processing below
@@ -3216,17 +3244,16 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                         )
 
                         text_clip = TextClip(
+                            subtitle_font,
                             text,
                             font_size=font_size,
                             color="white",
-                            font=subtitle_font,
                             stroke_color="black",
                             stroke_width=1,
                             size=(max_text_width, None),  # Strict width limit
                             method="caption",  # Enable text wrapping
-                            align="center",  # Center alignment
+                            text_align="center",  # Center alignment
                             transparent=True,
-                            kerning=-1,  # Reduce character spacing
                         )
 
                         # Log actual rendered text width
@@ -3261,17 +3288,16 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                             )
 
                             text_clip = TextClip(
+                                subtitle_font,
                                 text,
                                 font_size=emergency_font_size,
                                 color="white",
-                                font=subtitle_font,
                                 stroke_color="black",
                                 stroke_width=1,
                                 size=(max_text_width, None),
                                 method="caption",
-                                align="center",
+                                text_align="center",
                                 transparent=True,
-                                kerning=-1,
                             )
                             # Recalculate position with new size
                             subtitle_x = video_clip.w / 2 - text_clip.w / 2
@@ -3283,13 +3309,15 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                                 )
                                 # Force scale the text clip width to fit exactly
                                 force_scale = max_text_width / text_clip.w
-                                text_clip = text_clip.resize(force_scale)
+                                text_clip = text_clip.with_effects(
+                                    [vfx.Resize(new_size=force_scale)]
+                                )
                                 subtitle_x = video_clip.w / 2 - text_clip.w / 2
                                 self.logger.info(
                                     f"Applied forced scaling: {force_scale:.2f}x"
                                 )
                                 self.logger.error(
-                                    f"WARNING: Text was scaled down to fit - consider shortening subtitle text"
+                                    "WARNING: Text was scaled down to fit - consider shortening subtitle text"
                                 )
 
                             self.logger.info(
@@ -3297,18 +3325,18 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                             )
 
                     # Set timing and position
-                    text_clip = text_clip.with_position((subtitle_x, subtitle_y))
-                    text_clip = text_clip.with_start(start_time)
-                    text_clip = text_clip.with_duration(subtitle_duration)
-
-                    subtitle_clips.append(text_clip)
+                    if text_clip:
+                        text_clip = text_clip.with_position((subtitle_x, subtitle_y))
+                        text_clip = text_clip.with_start(start_time)
+                        text_clip = text_clip.with_duration(subtitle_duration)
+                        subtitle_clips.append(text_clip)
                     self.logger.debug(
                         f"Added subtitle: '{text[:30]}...' at {start_time:.2f}s for {subtitle_duration:.2f}s"
                     )
 
                 except Exception as e:
                     self.logger.error(
-                        f"Failed to create subtitle clip for '{text}': {e}"
+                        f">>>Failed to create subtitle clip for '{text}': {e}"
                     )
                     continue
 
@@ -3346,9 +3374,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
     def apply_transition(self, clip1, clip2):
         """Apply random transition between clips"""
         transitions = [
-            lambda c1, c2: c1.crossfadeout(0.5),
-            lambda c1, c2: c2.with_effects(FadeIn(0.5)),
-            lambda c1, c2: c1.with_effects(FadeOut(0.5)),
+            lambda c1, _: c1.crossfadeout(0.5),
+            lambda _, c2: c2.with_effects(FadeIn(0.5)),
+            lambda c1, _: c1.with_effects(FadeOut(0.5)),
         ]
 
         transition = random.choice(transitions)
@@ -3356,10 +3384,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
     def _check_and_regenerate_aspect_ratio(self, video_file):
         """Check if video is 16:9 aspect ratio and regenerate if not"""
+        import subprocess
+        import json
+
         try:
             # Get video dimensions using ffprobe
-            import subprocess
-            import json
 
             cmd = [
                 "ffprobe",
@@ -3392,10 +3421,6 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             if width == 0 or height == 0:
                 self.logger.error("Invalid video dimensions")
                 return False
-
-            # Calculate aspect ratio (width:height)
-            aspect_ratio = width / height
-            target_ratio = 16 / 9  # 1.777... (width:height)
 
             # For mobile phone portrait video: height > width, 16:9 ratio means height:width = 16:9
             # So target ratio should be height/width = 16/9 = 1.777...
@@ -3556,9 +3581,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         self, video_file, current_width, current_height
     ):
         """Regenerate video by cropping from center to 9:16 (width:height) aspect ratio"""
-        try:
-            import subprocess
+        import subprocess
 
+        try:
             # Create temporary file for the corrected video
             temp_file = video_file.with_suffix(".temp.mp4")
 
@@ -3607,7 +3632,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             ]
 
             print("🎬 Regenerating mobile portrait video with center cropping...")
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
 
             # Replace original file with corrected one
             if temp_file.exists():
@@ -3626,8 +3651,8 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     f"✅ Mobile portrait video regenerated successfully: {target_width}x{target_height}"
                 )
                 print(f"   Cropped from center: {new_width}x{new_height}")
-                print(f"   Maintained original video aspect ratio (no distortion)")
-                print(f"   Standard mobile 9:16 aspect ratio (width:height)")
+                print("   Maintained original video aspect ratio (no distortion)")
+                print("   Standard mobile 9:16 aspect ratio (width:height)")
                 print(f"   Original file backed up as: {backup_file.name}")
                 return True
             else:
@@ -3647,11 +3672,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         self, video_file, current_width, current_height
     ):
         """Regenerate video with 16:9 aspect ratio using ffmpeg"""
-        try:
-            import subprocess
-            import tempfile
-            import os
+        import subprocess
 
+        try:
             # Create temporary file for the corrected video
             temp_file = video_file.with_suffix(".temp.mp4")
 
@@ -3705,7 +3728,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             ]
 
             print("🎬 Regenerating video with ffmpeg...")
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
 
             # Replace original file with corrected one
             if temp_file.exists():
@@ -3924,7 +3947,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     self.logger.info(
                         f"Trimming main content from {main_content_duration:.2f}s to {actual_audio_duration:.2f}s"
                     )
-                    main_content = main_content.subclip(0, actual_audio_duration)
+                    main_content = main_content.subclipped(0, actual_audio_duration)
                     self.logger.info(
                         f"Main content trimmed to: {main_content.duration:.2f}s"
                     )
@@ -3946,19 +3969,21 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         if audio_duration and self.audio_file and self.audio_file.exists():
             try:
                 audio = AudioFileClip(str(self.audio_file))
-                self.logger.info(f"Audio duration: {audio.duration:.2f}s")
+                if audio:
+                    self.logger.info(f"Audio duration: {audio.duration:.2f}s")
 
                 # Now durations should match perfectly, but double-check
-                if abs(main_content.duration - audio.duration) > 0.1:
+                if audio and abs(main_content.duration - audio.duration) > 0.1:
                     self.logger.warning(
                         f"Duration mismatch after trimming: video={main_content.duration:.2f}s, audio={audio.duration:.2f}s"
                     )
                     # Trim audio to match video duration as final safeguard
-                    if audio.duration > main_content.duration:
-                        audio = audio.subclip(0, main_content.duration)
-                        self.logger.info(
-                            f"Trimmed audio to match video: {audio.duration:.2f}s"
-                        )
+                    if audio and audio.duration > main_content.duration:
+                        audio = audio.subclipped(0, main_content.duration)
+                        if audio:
+                            self.logger.info(
+                                f"Trimmed audio to match video: {audio.duration:.2f}s"
+                            )
 
                 # Apply audio to main content
                 main_content = main_content.with_audio(audio)
@@ -4075,9 +4100,8 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         # Progress tracking for video writing using file size monitoring
         import threading
-        import subprocess
 
-        def monitor_video_progress(file_path, expected_duration, logger):
+        def monitor_video_progress(file_path, expected_duration):
             """Monitor video file size to estimate progress"""
             start_time = time.time()
             last_size = 0
@@ -4138,7 +4162,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         # Start progress monitoring in a separate thread
         progress_thread = threading.Thread(
             target=monitor_video_progress,
-            args=(output_file, final_clip.duration, self.logger),
+            args=(output_file, final_clip.duration),
             daemon=True,
         )
         progress_thread.start()
