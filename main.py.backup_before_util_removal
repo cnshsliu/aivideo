@@ -35,6 +35,8 @@ import io
 import asyncio
 # Import configuration module
 from config_module import Config, parse_args
+# Import utility module
+from util_module import Utils
 
 # Type annotations for MoviePy objects
 ClipType = TypeVar("ClipType")
@@ -58,6 +60,7 @@ class VideoGenerator:
         self.project_folder = self.config.project_folder
         self.media_folder = self.project_folder / "media"
         self.prompt_folder = self.project_folder / "prompt"
+        self.utils = Utils(self.config.logger)
         self.subtitle_folder = self.project_folder / "subtitle"
         self.logger = self.config.logger
 
@@ -185,7 +188,7 @@ class VideoGenerator:
                         self.display_subtitles
                     )  # Use display for main workflow
                     # Create display-to-voice mapping for timestamp calculation
-                    self.display_to_voice_mapping = self._create_display_voice_mapping(
+                    self.display_to_voice_mapping = self.utils._create_display_voice_mapping(
                         self.voice_subtitles, self.display_subtitles
                     )
                     print(
@@ -208,7 +211,7 @@ class VideoGenerator:
                         if raw_subtitles:
                             # Create both voice and display versions
                             self.voice_subtitles = raw_subtitles
-                            self.display_subtitles = self._optimize_subtitles(
+                            self.display_subtitles = self.utils._optimize_subtitles(
                                 raw_subtitles
                             )
                             self.subtitles = self.display_subtitles
@@ -260,7 +263,7 @@ class VideoGenerator:
                     ]
 
                     # Create display-optimized subtitles (without unnecessary punctuation)
-                    self.display_subtitles = self._optimize_subtitles(
+                    self.display_subtitles = self.utils._optimize_subtitles(
                         self.voice_subtitles
                     )
 
@@ -271,7 +274,7 @@ class VideoGenerator:
                         print(
                             f"Loaded {len(self.voice_subtitles)} voice subtitles and created {len(self.display_subtitles)} display subtitles from {text_file}"
                         )
-                        self._log_subtitles(f"text file: {text_file.name}")
+                        self.utils._log_subtitles(self,f"text file: {text_file.name}")
 
                         # Save both versions
                         voice_file = self.subtitle_folder / "voice_subtitles.txt"
@@ -331,7 +334,7 @@ class VideoGenerator:
         self.voice_subtitles = raw_subtitles
 
         # Create display-optimized subtitles (without unnecessary punctuation)
-        self.display_subtitles = self._optimize_subtitles(raw_subtitles)
+        self.display_subtitles = self.utils._optimize_subtitles(raw_subtitles)
 
         # Use display subtitles for the main workflow (backward compatibility)
         self.subtitles = self.display_subtitles
@@ -339,7 +342,7 @@ class VideoGenerator:
         print(
             f"Loaded {len(self.voice_subtitles)} voice subtitles and created {len(self.display_subtitles)} display subtitles from static files"
         )
-        self._log_subtitles("static files")
+        self.utils._log_subtitles(self,"static files")
 
         # Save both versions
         voice_file = self.subtitle_folder / "voice_subtitles.txt"
@@ -384,10 +387,7 @@ class VideoGenerator:
             # Check if litellm configuration is available
             api_base = os.getenv("LITELLM_API_BASE_URL", "http://localhost:4000")
             api_key = os.getenv("LITELLM_MASTER_KEY")
-            if llm_config:
-                model_name = llm_config.get("model", "unknown")
-            else:
-                model_name = "unknown"
+            model_name = llm_config["model"] if llm_config else None
 
             if not api_key:
                 raise ValueError(
@@ -395,23 +395,17 @@ class VideoGenerator:
                 )
 
             # Check if provider-specific API key is needed and available
-            if llm_config:
-                provider_env_key = llm_config.get("env_key")
-                if provider_env_key:
-                    provider_api_key = os.getenv(provider_env_key)
-                    if not provider_api_key:
-                        display_name = llm_config.get("display_name", "unknown")
-                        raise ValueError(
-                            f"{provider_env_key} not found in environment variables (required for {display_name})"
-                        )
+            provider_env_key = llm_config["env_key"] if llm_config else None
+            if provider_env_key:
+                provider_api_key = os.getenv(provider_env_key)
+                if not provider_api_key:
+                    raise ValueError(
+                        f"{provider_env_key} not found in environment variables (required for {llm_config['display_name'] if llm_config else 'unknown'})"
+                    )
 
-            if llm_config:
-                display_name = llm_config.get("display_name", "unknown")
-                self.logger.info(
-                    f"Using LLM provider: {display_name} ({provider})"
-                )
-            else:
-                self.logger.info(f"Using LLM provider: {provider}")
+            self.logger.info(
+                f"Using LLM provider: {llm_config['display_name'] if llm_config else 'unknown'} ({provider})"
+            )
             self.logger.info(f"Model: {model_name}")
 
             # Configure OpenAI client to use litellm endpoint
@@ -425,6 +419,8 @@ class VideoGenerator:
 
                 self.logger.info(f"Using litellm endpoint: {openai.base_url}")
 
+                if not model_name:
+                    raise ValueError("Model name is required but not available")
                 response = openai.chat.completions.create(
                     model=model_name,
                     messages=[
@@ -524,7 +520,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.voice_subtitles = raw_subtitles
 
             # Create display-optimized subtitles (without unnecessary punctuation)
-            self.display_subtitles = self._optimize_subtitles(raw_subtitles)
+            self.display_subtitles = self.utils._optimize_subtitles(raw_subtitles)
 
             # Use display subtitles for the main workflow (backward compatibility)
             self.subtitles = self.display_subtitles
@@ -543,17 +539,10 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 f"Generated {len(self.voice_subtitles)} voice subtitles and {len(self.display_subtitles)} display subtitles"
             )
 
-            if llm_config:
-                display_name = llm_config.get("display_name", "unknown")
-                print(
-                    f"Generated {len(self.subtitles)} subtitles using {display_name}"
-                )
-                self._log_subtitles(f"LLM - {display_name} ({provider})")
-            else:
-                print(
-                    f"Generated {len(self.subtitles)} subtitles using {provider}"
-                )
-                self._log_subtitles(f"LLM - {provider}")
+            print(
+                f"Generated {len(self.subtitles)} subtitles using {llm_config['display_name'] if llm_config else 'unknown'}"
+            )
+            self.utils._log_subtitles(self,f"LLM - {llm_config['display_name'] if llm_config else 'unknown'} ({provider})")
 
         except Exception as e:
             print(f"Damn, subtitle generation failed: {e}")
@@ -644,7 +633,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.audio_file = audio_path
 
             # Calculate subtitle timestamps based on audio duration and subtitle count
-            self._calculate_subtitle_timestamps()
+            self.utils._calculate_subtitle_timestamps(
+                    self.voice_subtitles,
+                    self.display_subtitles,
+                    self.display_to_voice_mapping,
+                    self.audio_file,
+                    self.subtitle_folder
+                )
 
         except Exception as e:
             print(f"Damn, Volcengine TTS failed: {e}")
@@ -913,7 +908,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             total_voice_time = 0
 
             for voice_subtitle in self.voice_subtitles:
-                estimated_time = self._estimate_speaking_time(voice_subtitle)
+                estimated_time = self.utils._estimate_speaking_time(voice_subtitle)
                 voice_estimates.append(estimated_time)
                 total_voice_time += estimated_time
 
@@ -995,12 +990,12 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             )
 
             # Create SRT subtitle file using display subtitles
-            self._create_srt_subtitle_file()
+            self.utils._create_srt_subtitle_file(self,)
 
         except Exception as e:
             self.logger.error(f"Failed to calculate subtitle timestamps: {e}")
             # Fallback: equal distribution based on display subtitles
-            self._create_fallback_timestamps()
+            self.utils._create_fallback_timestamps(self,)
 
     def _estimate_speaking_time(self, text):
         """Estimate speaking time for text based on linguistic analysis"""
@@ -1008,9 +1003,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             return 1.0  # Minimum duration
 
         # Count different types of characters
-        chinese_chars = sum(1 for char in text if self._contains_chinese(char))
+        chinese_chars = sum(1 for char in text if self.utils._contains_chinese(char))
         english_words = len(
-            [word for word in text.split() if not self._contains_chinese(word)]
+            [word for word in text.split() if not self.utils._contains_chinese(word)]
         )
         digits = sum(1 for char in text if char.isdigit())
         punctuation = sum(1 for char in text if char in '，。！？；：""（）【】《》')
@@ -1049,7 +1044,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         # Ensure voice subtitles are properly formatted (with periods)
         cleaned_voice_subtitles = []
         for subtitle in raw_subtitles:
-            cleaned_subtitle = self._clean_and_validate_subtitle(subtitle)
+            cleaned_subtitle = self.utils._clean_and_validate_subtitle(subtitle)
             cleaned_voice_subtitles.append(cleaned_subtitle)
 
         # Update voice subtitles with cleaned versions
@@ -1058,14 +1053,14 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         # Generate display subtitles (without trailing periods)
         for idx, voice_subtitle in enumerate(self.voice_subtitles):
             # For display subtitles, remove trailing periods
-            display_subtitle = self._remove_trailing_period(voice_subtitle)
+            display_subtitle = self.utils._remove_trailing_period(voice_subtitle)
 
             # Split into multiple lines if still too long (fallback)
-            if self._needs_splitting(voice_subtitle):
-                chunks = self._split_long_subtitle(voice_subtitle)
+            if self.utils._needs_splitting(voice_subtitle):
+                chunks = self.utils._split_long_subtitle(voice_subtitle)
                 # Remove trailing periods from display chunks
                 display_chunks = [
-                    self._remove_trailing_period(chunk) for chunk in chunks
+                    self.utils._remove_trailing_period(chunk) for chunk in chunks
                 ]
                 display_subtitles.extend(display_chunks)
                 # Each chunk maps to the same original subtitle
@@ -1097,7 +1092,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             cleaned += "。"
 
         # Clean any other punctuation issues while preserving sentence structure
-        cleaned = self._clean_punctuation(cleaned)
+        cleaned = self.utils._clean_punctuation(cleaned)
 
         return cleaned
 
@@ -1109,21 +1104,21 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
     def _needs_splitting(self, subtitle):
         """Check if subtitle needs to be split due to length"""
-        length = self._calculate_display_length(subtitle)
+        length = self.utils._calculate_display_length(subtitle)
         return length > 20  # Maximum 20 characters
 
     def _split_long_subtitle(self, subtitle):
         """Split a long subtitle into appropriate chunks"""
         # Try to split at punctuation first
-        if self._should_split_mixed_text(subtitle):
-            return self._split_mixed_text(subtitle, 20)
+        if self.utils._should_split_mixed_text(subtitle):
+            return self.utils._split_mixed_text(subtitle, 20)
         else:
-            return self._split_by_chinese_count(subtitle, 20)
+            return self.utils._split_by_chinese_count(subtitle, 20)
 
     def _should_split_subtitle(self, subtitle):
         """Determine if a subtitle should be split based on length and content"""
         # Stricter length limits for better readability
-        max_chars = 30 if self._contains_chinese(subtitle) else 50
+        max_chars = 30 if self.utils._contains_chinese(subtitle) else 50
         max_words = 12
 
         # Check character count
@@ -1166,11 +1161,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         # Special handling for em dash (——) - should be processed first
         if "——" in subtitle:
-            parts = self._split_by_em_dash(subtitle)
+            parts = self.utils._split_by_em_dash(subtitle)
             if len(parts) > 1:
                 # Clean each part (remove unnecessary punctuation)
                 cleaned_parts = [
-                    self._clean_punctuation(part.strip())
+                    self.utils._clean_punctuation(part.strip())
                     for part in parts
                     if part.strip()
                 ]
@@ -1200,11 +1195,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         major_splits = ["。", "！", "？", ".", "!", "?"]
         for char in major_splits:
             if char in subtitle:
-                parts = self._split_by_punctuation(subtitle, char)
+                parts = self.utils._split_by_punctuation(subtitle, char)
                 if len(parts) > 1:
                     # Clean each part (remove unnecessary punctuation)
                     cleaned_parts = [
-                        self._clean_punctuation(part.strip())
+                        self.utils._clean_punctuation(part.strip())
                         for part in parts
                         if part.strip()
                     ]
@@ -1234,11 +1229,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         minor_splits = ["；", ";", "，", ",", "、", "：", ":", "·", "•"]
         for char in minor_splits:
             if char in subtitle:
-                parts = self._split_by_punctuation(subtitle, char)
+                parts = self.utils._split_by_punctuation(subtitle, char)
                 if len(parts) > 1:
                     # Clean each part
                     cleaned_parts = [
-                        self._clean_punctuation(part.strip())
+                        self.utils._clean_punctuation(part.strip())
                         for part in parts
                         if part.strip()
                     ]
@@ -1265,7 +1260,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                         return result
 
         # If no punctuation-based splits work, use length-based splitting
-        return self._split_by_length(subtitle)
+        return self.utils._split_by_length(subtitle)
 
     def _split_by_punctuation(self, text, punctuation_char):
         """Split text by punctuation character, preserving the punctuation in the result"""
@@ -1373,11 +1368,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
     def _should_split_mixed_text(self, text, max_length=20):
         """Check if mixed Chinese-English text should be split based on length calculation"""
-        return self._calculate_display_length(text) > max_length
+        return self.utils._calculate_display_length(text) > max_length
 
     def _split_mixed_text(self, text, max_length=20):
         """Split mixed Chinese-English text at appropriate boundaries"""
-        if not self._should_split_mixed_text(text, max_length):
+        if not self.utils._should_split_mixed_text(text, max_length):
             return [text]
 
         # Try to split at spaces first (between English words)
@@ -1391,8 +1386,8 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         for word in words:
             # Calculate length of this word
-            word_length = self._calculate_display_length(word)
-            space_length = self._calculate_display_length(" ") if current_chunk else 0
+            word_length = self.utils._calculate_display_length(word)
+            space_length = self.utils._calculate_display_length(" ") if current_chunk else 0
 
             if current_length + space_length + word_length <= max_length:
                 # Add word to current chunk
@@ -1500,22 +1495,22 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
     def _split_by_length(self, subtitle):
         """Split subtitle by character/word count as last resort"""
-        max_length = 25 if self._contains_chinese(subtitle) else 40
+        max_length = 25 if self.utils._contains_chinese(subtitle) else 40
 
         if len(subtitle) <= max_length:
             return [subtitle]
 
-        if self._contains_chinese(subtitle):
+        if self.utils._contains_chinese(subtitle):
             # For Chinese, split at word boundaries or character count
             mid_point = len(subtitle) // 2
             # Try to find a good split point
             for i in range(mid_point, max(0, mid_point - 10), -1):
                 if i < len(subtitle) - 1:
-                    return [subtitle[:i], self._clean_punctuation(subtitle[i:].strip())]
+                    return [subtitle[:i], self.utils._clean_punctuation(subtitle[i:].strip())]
             # Fallback
             return [
                 subtitle[:max_length],
-                self._clean_punctuation(subtitle[max_length:].strip()),
+                self.utils._clean_punctuation(subtitle[max_length:].strip()),
             ]
         else:
             # For English, split by word boundaries
@@ -1530,8 +1525,8 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 second_part = " ".join(words[i:])
                 if len(first_part) >= 5 and len(second_part) >= 5:
                     return [
-                        self._clean_punctuation(first_part),
-                        self._clean_punctuation(second_part),
+                        self.utils._clean_punctuation(first_part),
+                        self.utils._clean_punctuation(second_part),
                     ]
 
             # Fallback
@@ -1576,7 +1571,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.logger.info(
                 "Created fallback timestamps with equal distribution for display subtitles"
             )
-            self._create_srt_subtitle_file()
+            self.utils._create_srt_subtitle_file(self,)
 
         except Exception as e:
             self.logger.error(f"Failed to create fallback timestamps: {e}")
@@ -1602,7 +1597,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         if self.args.keep_clip_length:
             # Keep original clip lengths
             self.logger.info("Using keep_clip_length mode")
-            return self._process_with_original_length(selected_clips)
+            return self.utils._process_with_original_length(self,selected_clips)
         else:
             # Check if we have a target length
             target_length = getattr(self.args, "length", None)
@@ -1610,13 +1605,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             if target_length:
                 # Cut clips to fit target length
                 self.logger.info("Using target length mode")
-                return self._process_with_target_length(selected_clips)
+                return self.utils._process_with_target_length(self,selected_clips)
             else:
                 # No target length specified - keep original lengths
                 self.logger.info(
                     "No target length specified, keeping original clip lengths"
                 )
-                return self._process_with_original_length(selected_clips)
+                return self.utils._process_with_original_length(self,selected_clips)
 
     def _resize_to_mobile_aspect_ratio(self, clip):
         """Resize video clip to mobile portrait 9:16 aspect ratio with center scaling"""
@@ -1954,20 +1949,20 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     # Convert image to video clip
                     clip = ImageClip(str(clip_path)).with_duration(3.0)
                     # Resize image to mobile aspect ratio
-                    clip = self._resize_to_mobile_aspect_ratio(clip)
+                    clip = self.utils._resize_to_mobile_aspect_ratio(clip)
                     self.logger.debug(
                         f"Converted and resized image to clip: {clip_path} (3.0s)"
                     )
                 else:
                     # Video clip with safe loading for corrupted files
-                    clip = self._safe_load_video_clip(clip_path)
+                    clip = self.utils._safe_load_video_clip(clip_path)
                     if clip is None:
                         self.logger.warning(
                             f"Skipping corrupted video clip: {clip_path}"
                         )
                         continue
                     # Resize video clip to fit mobile aspect ratio (remove black borders)
-                    clip = self._resize_to_mobile_aspect_ratio(clip)
+                    clip = self.utils._resize_to_mobile_aspect_ratio(clip)
                     self.logger.debug(
                         f"Loaded and resized video clip: {clip_path} ({clip.duration:.2f}s -> {clip.w}x{clip.h})"
                     )
@@ -2079,13 +2074,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     # Convert image to video clip
                     clip = ImageClip(str(clip_path)).with_duration(clip_duration)
                     # Resize image to mobile aspect ratio
-                    clip = self._resize_to_mobile_aspect_ratio(clip)
+                    clip = self.utils._resize_to_mobile_aspect_ratio(clip)
                     self.logger.debug(
                         f"Created and resized image clip: {clip_path} ({clip_duration:.2f}s -> {clip.w}x{clip.h})"
                     )
                 else:
                     # Video clip - process to exact duration with safe loading
-                    full_clip = self._safe_load_video_clip(clip_path)
+                    full_clip = self.utils._safe_load_video_clip(clip_path)
                     if full_clip is None:
                         self.logger.warning(
                             f"Skipping corrupted video clip: {clip_path}"
@@ -2093,7 +2088,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                         continue
 
                     # Resize the full clip to mobile aspect ratio before processing
-                    full_clip = self._resize_to_mobile_aspect_ratio(full_clip)
+                    full_clip = self.utils._resize_to_mobile_aspect_ratio(full_clip)
                     self.logger.debug(
                         f"Resized video clip to mobile aspect ratio: {clip_path} ({full_clip.w}x{full_clip.h})"
                     )
@@ -2237,7 +2232,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                                             )
 
                                     if len(valid_clips) > 0:
-                                        clip = self._safe_concatenate_clips(
+                                        clip = self.utils._safe_concatenate_clips(
                                             valid_clips, method="compose"
                                         )
                                         self.logger.info(
@@ -2319,9 +2314,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             # Check if title contains Chinese and use appropriate font
             full_title_text = self.args.title
-            if clip and self._contains_chinese(full_title_text):
+            if clip and self.utils._contains_chinese(full_title_text):
                 self.logger.info(f"Chinese text detected in title: '{full_title_text}'")
-                title_font = self._get_chinese_compatible_font(title_font)
+                title_font = self.utils._get_chinese_compatible_font(title_font)
                 if title_font is None:
                     self.logger.error("No compatible font found for Chinese title text")
                     return clip
@@ -2504,7 +2499,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     if remaining_composite:
                         clips_to_concat.append(remaining_composite)
 
-                    result = self._safe_concatenate_clips(
+                    result = self.utils._safe_concatenate_clips(
                         clips_to_concat, method="compose"
                     )
                     remaining_duration = (
@@ -2557,7 +2552,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.logger.info(
                 "Enhanced titles disabled temporarily due to frame read issues, using basic title system"
             )
-            return self._add_title_basic(clip, use_full_duration)
+            return self.utils._add_title_basic(self, clip, use_full_duration)clip, use_full_duration)
 
             # Original enhanced title system (disabled for now)
             # if ENHANCED_TITLES_AVAILABLE:
@@ -2566,12 +2561,12 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             #
             # # Fallback to original method
             # self.logger.info("Enhanced titles not available, using basic title system")
-            # return self._add_title_basic(clip, use_full_duration)
+            # return self.utils._add_title_basic(self, clip, use_full_duration)clip, use_full_duration)
 
         except Exception as e:
             self.logger.error(f"Enhanced title failed, falling back to basic: {e}")
             # Fallback to basic title
-            return self._add_title_basic(clip, use_full_duration)
+            return self.utils._add_title_basic(self, clip, use_full_duration)clip, use_full_duration)
 
     def _get_chinese_compatible_font(self, default_font="Arial"):
         """Get a font that supports Chinese characters"""
@@ -2678,7 +2673,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         self.logger.info(
             "No predefined Chinese fonts worked, trying system font detection..."
         )
-        system_font = self._find_chinese_font_in_system()
+        system_font = self.utils._find_chinese_font_in_system()
         if system_font:
             return system_font
 
@@ -2725,7 +2720,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
     def _find_chinese_font_in_system(self):
         """Find Chinese fonts in system font list"""
-        system_fonts = self._get_system_fonts()
+        system_fonts = self.utils._get_system_fonts()
         if not system_fonts:
             return None
 
@@ -2881,9 +2876,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             subtitle_font = getattr(self.args, "subtitle_font", "Arial") or "Arial"
 
             # Check if text contains Chinese and use appropriate font
-            if self._contains_chinese(subtitle_text):
+            if self.utils._contains_chinese(subtitle_text):
                 self.logger.info(f"Chinese text detected: '{subtitle_text}'")
-                subtitle_font = self._get_chinese_compatible_font(subtitle_font)
+                subtitle_font = self.utils._get_chinese_compatible_font(subtitle_font)
                 if subtitle_font is None:
                     self.logger.error("No compatible font found for Chinese text")
                     return clip
@@ -2922,7 +2917,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 )
                 subtitle_clip.close()
                 # Try with much smaller font size - more aggressive reduction for mobile
-                if self._contains_chinese(subtitle_text):
+                if self.utils._contains_chinese(subtitle_text):
                     emergency_font_size = max(
                         16, int(font_size * 0.4)
                     )  # 40% reduction for Chinese
@@ -2986,7 +2981,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 "No timestamped subtitles available, using fallback method"
             )
             # Fallback to old method if timestamps not available
-            return self._add_subtitles_fallback(video_clip)
+            return self.utils._add_subtitles_fallback(self,video_clip)
 
         try:
             self.logger.info(
@@ -3004,13 +2999,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             # Check if we need Chinese font support
             needs_chinese_font = any(
-                self._contains_chinese(sub["text"]) for sub in self.subtitle_timestamps
+                self.utils._contains_chinese(sub["text"]) for sub in self.subtitle_timestamps
             )
             if needs_chinese_font:
                 self.logger.info(
                     "Chinese text detected in subtitles, using compatible font"
                 )
-                subtitle_font = self._get_chinese_compatible_font(subtitle_font)
+                subtitle_font = self.utils._get_chinese_compatible_font(subtitle_font)
                 if subtitle_font is None:
                     self.logger.error("No compatible font found for Chinese text")
                     return video_clip
@@ -3051,13 +3046,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     max_text_width = int(
                         video_clip.w * 0.65
                     )  # Reduced to 65% for mobile safety
-                    max_chars_per_line = self._calculate_safe_max_chars(
+                    max_chars_per_line = self.utils._calculate_safe_max_chars(
                         text, max_text_width
                     )
                     self.logger.info(
                         f"Dynamic character limit: {max_chars_per_line} chars for text: '{text[:30]}...'"
                     )
-                    text_lines = self._split_long_subtitle_text(
+                    text_lines = self.utils._split_long_subtitle_text(
                         text, max_chars_per_line
                     )
 
@@ -3118,7 +3113,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
                                 # Try with much smaller font size - more aggressive reduction for mobile
                                 # For Chinese text, use even more aggressive reduction
-                                if self._contains_chinese(line_text):
+                                if self.utils._contains_chinese(line_text):
                                     emergency_font_size = max(
                                         16, int(font_size * 0.4)
                                     )  # 40% reduction for Chinese
@@ -3216,7 +3211,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
                             # Try with much smaller font size - more aggressive reduction for mobile
                             # For Chinese text, use even more aggressive reduction
-                            if self._contains_chinese(text):
+                            if self.utils._contains_chinese(text):
                                 emergency_font_size = max(
                                     16, int(font_size * 0.4)
                                 )  # 40% reduction for Chinese
@@ -3416,7 +3411,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     print(
                         "🔄 Regenerating video with correct mobile 16:9 portrait ratio..."
                     )
-                    return self._regenerate_with_mobile_portrait_ratio(
+                    return self.utils._regenerate_with_mobile_portrait_ratio(self,
                         video_file, width, height
                     )
             else:
@@ -3425,7 +3420,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     f"❌ Video is in landscape mode {width}x{height}, but mobile requires portrait mode"
                 )
                 print("🔄 Regenerating video with mobile portrait orientation...")
-                return self._regenerate_with_mobile_portrait_ratio(
+                return self.utils._regenerate_with_mobile_portrait_ratio(self,
                     video_file, width, height
                 )
 
@@ -3528,7 +3523,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 "-i",
                 bgm_file,  # Background music
                 "-filter_complex",
-                self._build_ffmpeg_audio_filter(
+                self.utils._build_ffmpeg_audio_filter(
                     video_duration, bgm_volume, fade_in, fade_out
                 ),
                 "-map",
@@ -3607,7 +3602,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             return [text]
 
         # For Chinese text, use a more conservative approach
-        if self._contains_chinese(text):
+        if self.utils._contains_chinese(text):
             max_length = 12  # Chinese characters are wider
 
         # Try to split at natural break points
@@ -3674,9 +3669,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             return 20  # Default fallback
 
         # Count character types
-        chinese_count = sum(1 for char in text if self._contains_chinese(char))
+        chinese_count = sum(1 for char in text if self.utils._contains_chinese(char))
         english_count = sum(
-            1 for char in text if char.isalpha() and not self._contains_chinese(char)
+            1 for char in text if char.isalpha() and not self.utils._contains_chinese(char)
         )
         digit_count = sum(1 for char in text if char.isdigit())
 
@@ -3906,7 +3901,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                         self.audio_file = audio_file
                         self.logger.info("Using existing audio file")
                         # Calculate subtitle timestamps using existing audio
-                        self._calculate_subtitle_timestamps()
+                        self.utils._calculate_subtitle_timestamps(
+                    self.voice_subtitles,
+                    self.display_subtitles,
+                    self.display_to_voice_mapping,
+                    self.audio_file,
+                    self.subtitle_folder
+                )
                     else:
                         raise FileNotFoundError(
                             "No audio file found. Use --gen-voice to generate audio."
@@ -3957,7 +3958,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     self.logger.info("Using existing audio file")
                     # Calculate subtitle timestamps using existing audio (for both existing and new subtitles)
                     if hasattr(self, "voice_subtitles") and self.voice_subtitles:
-                        self._calculate_subtitle_timestamps()
+                        self.utils._calculate_subtitle_timestamps(
+                    self.voice_subtitles,
+                    self.display_subtitles,
+                    self.display_to_voice_mapping,
+                    self.audio_file,
+                    self.subtitle_folder
+                )
                 else:
                     raise FileNotFoundError(
                         "No audio file found. Use --gen-voice to generate audio."
@@ -4034,7 +4041,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.logger.info("Single main clip, no concatenation needed")
         else:
             self.logger.info("Concatenating main clips")
-            main_content = self._safe_concatenate_clips(
+            main_content = self.utils._safe_concatenate_clips(
                 processed_main_clips, method="compose"
             )
 
@@ -4128,10 +4135,10 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         # Add start clip if available
         if self.start_file:
-            start_clip = self._safe_load_video_clip(self.start_file)
+            start_clip = self.utils._safe_load_video_clip(self.start_file)
             if start_clip is not None:
                 # Resize start clip to fit mobile aspect ratio (remove black borders)
-                start_clip = self._resize_to_mobile_aspect_ratio(start_clip)
+                start_clip = self.utils._resize_to_mobile_aspect_ratio(start_clip)
                 self.logger.info(
                     f"Resized start clip to mobile aspect ratio: {start_clip.w}x{start_clip.h}"
                 )
@@ -4155,10 +4162,10 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         # Add closing clip if available
         if self.closing_file:
-            closing_clip = self._safe_load_video_clip(self.closing_file)
+            closing_clip = self.utils._safe_load_video_clip(self.closing_file)
             if closing_clip is not None:
                 # Resize closing clip to fit mobile aspect ratio (remove black borders)
-                closing_clip = self._resize_to_mobile_aspect_ratio(closing_clip)
+                closing_clip = self.utils._resize_to_mobile_aspect_ratio(closing_clip)
                 self.logger.info(
                     f"Resized closing clip to mobile aspect ratio: {closing_clip.w}x{closing_clip.h}"
                 )
@@ -4190,7 +4197,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.logger.info("Single clip, no concatenation needed")
         else:
             try:
-                final_clip = self._safe_concatenate_clips(final_clips, method="compose")
+                final_clip = self.utils._safe_concatenate_clips(final_clips, method="compose")
                 self.logger.info(
                     f"Successfully concatenated final video with {len(final_clips)} components"
                 )
@@ -4206,7 +4213,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         if getattr(self.args, "mp3", None):
             self.logger.info("Step 7.5: Adding background music...")
             print("🎵 Step 7.5: Adding background music...")
-            final_clip = self._add_background_music(final_clip)
+            final_clip = self.utils._add_background_music(self,final_clip)
             self.logger.info(
                 f"Final video duration after adding background music: {final_clip.duration:.2f}s"
             )
@@ -4341,7 +4348,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 temp_output = output_file.with_suffix(".temp_with_music.mp4")
 
                 # Apply background music using FFmpeg
-                if self._apply_background_music_ffmpeg(output_file, temp_output):
+                if self.utils._apply_background_music_ffmpeg(self,output_file, temp_output):
                     # Replace original file with the music-enhanced version
                     shutil.move(str(temp_output), str(output_file))
                     self.logger.info(
@@ -4377,7 +4384,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             main_content.close()
 
         # Check video aspect ratio and regenerate if not 16:9
-        if self._check_and_regenerate_aspect_ratio(output_file):
+        if self.utils._check_and_regenerate_aspect_ratio(self,output_file):
             self.logger.info("Video regenerated with correct 16:9 aspect ratio")
             print("✅ Video regenerated with correct 16:9 aspect ratio")
 
