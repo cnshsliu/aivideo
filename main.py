@@ -7,8 +7,6 @@ Damn, this is gonna be one hell of a video generator! Don't f*cking pass invalid
 import os
 import sys
 import random
-import argparse
-import logging
 import time
 import subprocess
 import shutil
@@ -17,32 +15,26 @@ from typing import TypeVar
 import json
 from datetime import datetime
 import numpy as np
-import importlib.util
 from moviepy import (
     VideoFileClip,
     AudioFileClip,
     TextClip,
     CompositeVideoClip,
-    CompositeAudioClip,
     concatenate_videoclips,
     vfx,
     ImageClip,
 )
 from moviepy.video.fx import FadeIn, FadeOut
+
 # Removed audio effects imports to avoid subprocess issues
 import openai
-import dashscope
-from dotenv import load_dotenv
 import websockets
 import uuid
 import struct
 import io
 import asyncio
-
-# Enhanced title visibility
-ENHANCED_TITLES_AVAILABLE = (
-    importlib.util.find_spec("enhanced_title_visibility") is not None
-)
+# Import configuration module
+from config_module import Config, parse_args
 
 # Type annotations for MoviePy objects
 ClipType = TypeVar("ClipType")
@@ -52,11 +44,6 @@ ImageClipType = TypeVar("ImageClipType")
 CompositeVideoClipType = TypeVar("CompositeVideoClipType")
 AudioClipType = TypeVar("AudioClipType")
 
-# Load environment variables
-load_dotenv()
-
-# Configure APIs
-dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
 
 
 class VideoGenerator:
@@ -66,14 +53,13 @@ class VideoGenerator:
     """
 
     def __init__(self, args):
+        self.config = Config(args)
         self.args = args
-        self.project_folder = Path(args.folder)
+        self.project_folder = self.config.project_folder
         self.media_folder = self.project_folder / "media"
         self.prompt_folder = self.project_folder / "prompt"
         self.subtitle_folder = self.project_folder / "subtitle"
-
-        # Validate project structure
-        self._validate_project_structure()
+        self.logger = self.config.logger
 
         # Media files list
         self.media_files = []
@@ -87,33 +73,8 @@ class VideoGenerator:
         self.display_to_voice_mapping = []  # Maps display subtitle index to voice subtitle index
         self.audio_file = None
 
-        # Setup logging
-        self._setup_logging()
-
-    def _setup_logging(self):
-        """Setup logging configuration"""
-        # Create logs directory
-        logs_dir = self.project_folder / "logs"
-        logs_dir.mkdir(exist_ok=True)
-
-        # Create log filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = logs_dir / f"video_generation_{timestamp}.log"
-
-        # Configure logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-            handlers=[
-                logging.FileHandler(log_file, encoding="utf-8"),
-                logging.StreamHandler(sys.stdout),
-            ],
-        )
-
-        self.logger = logging.getLogger(__name__)
-        self.logger.info(f"Video generation started for project: {self.project_folder}")
-        self.logger.info(f"Log file: {log_file}")
-
+        
+    
     def _log_subtitles(self, source="unknown"):
         """Log generated subtitles with detailed information"""
         if not self.subtitles:
@@ -148,18 +109,7 @@ class VideoGenerator:
 
         self.logger.info(f"Subtitles saved to: {subtitle_file}")
 
-    def _validate_project_structure(self):
-        """Validate that the project folder has the required structure"""
-        if not self.project_folder.exists():
-            raise FileNotFoundError(
-                f"Project folder doesn't exist: {self.project_folder}"
-            )
-
-        required_folders = ["media", "prompt", "subtitle"]
-        for folder in required_folders:
-            if not (self.project_folder / folder).exists():
-                (self.project_folder / folder).mkdir(parents=True, exist_ok=True)
-
+    
     def scan_media_files(self):
         """Scan media folder and identify special files"""
         # Find all media files (videos and images)
@@ -405,35 +355,7 @@ class VideoGenerator:
 
     def get_llm_model_config(self, provider):
         """Get model configuration for specified LLM provider"""
-        provider_models = {
-            "qwen": {
-                "model": "qwen3-coder",
-                "env_key": "DASHSCOPE_API_KEY",
-                "display_name": "Qwen 3 Coder",
-            },
-            "grok": {
-                "model": "grok-code-fast-1",
-                "env_key": "GROK_API_KEY",
-                "display_name": "Grok Code Fast 1",
-            },
-            "glm": {
-                "model": "glm-4.5",
-                "env_key": "Z_API_KEY",
-                "display_name": "GLM 4.5",
-            },
-            "ollama": {
-                "model": "gpt-oss",
-                "env_key": None,  # No API key needed for local Ollama
-                "display_name": "Ollama GPT-OSS",
-            },
-        }
-
-        if provider not in provider_models:
-            raise ValueError(
-                f"Unsupported LLM provider: {provider}. Supported providers: {list(provider_models.keys())}"
-            )
-
-        return provider_models[provider]
+        return self.config.get_llm_model_config(provider)
 
     def generate_subtitles(self):
         """Generate subtitles using LLM"""
@@ -3535,14 +3457,16 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             # Store background music info for post-processing
             self.background_music_info = {
-                'file': str(bgm_file),
-                'fade_in': fade_in_duration,
-                'fade_out': fade_out_duration,
-                'volume': bgm_volume,
-                'video_duration': final_clip.duration if final_clip else 0
+                "file": str(bgm_file),
+                "fade_in": fade_in_duration,
+                "fade_out": fade_out_duration,
+                "volume": bgm_volume,
+                "video_duration": final_clip.duration if final_clip else 0,
             }
 
-            self.logger.info("🎵 Background music will be added using FFmpeg post-processing")
+            self.logger.info(
+                "🎵 Background music will be added using FFmpeg post-processing"
+            )
             self.logger.info("🔄 This avoids MoviePy audio mixing issues")
 
             return final_clip
@@ -3551,6 +3475,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.logger.error(f"❌ Failed to prepare background music: {e}")
             self.logger.error(f"Error type: {type(e)}")
             import traceback
+
             self.logger.error(f"Full traceback: {traceback.format_exc()}")
             self.logger.info("🔄 Continuing without background music...")
             return final_clip
@@ -3564,13 +3489,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 return False
 
             bgm_info = self.background_music_info
-            bgm_file = bgm_info['file']
-            video_duration = bgm_info['video_duration']
-            bgm_volume = bgm_info['volume']
-            fade_in = bgm_info['fade_in']
-            fade_out = bgm_info['fade_out']
+            bgm_file = bgm_info["file"]
+            video_duration = bgm_info["video_duration"]
+            bgm_volume = bgm_info["volume"]
+            fade_in = bgm_info["fade_in"]
+            fade_out = bgm_info["fade_out"]
 
-            self.logger.info(f"🎵 Processing background music with FFmpeg...")
+            self.logger.info("🎵 Processing background music with FFmpeg...")
             self.logger.info(f"📁 Input video: {input_video}")
             self.logger.info(f"📁 Background music: {bgm_file}")
             self.logger.info(f"⏱️  Video duration: {video_duration:.2f}s")
@@ -3582,18 +3507,26 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             # This approach uses FFmpeg's filter complex to mix audio properly
             ffmpeg_cmd = [
                 "ffmpeg",
-                "-i", str(input_video),          # Input video
-                "-i", bgm_file,                  # Background music
-                "-filter_complex", self._build_ffmpeg_audio_filter(
+                "-i",
+                str(input_video),  # Input video
+                "-i",
+                bgm_file,  # Background music
+                "-filter_complex",
+                self._build_ffmpeg_audio_filter(
                     video_duration, bgm_volume, fade_in, fade_out
                 ),
-                "-map", "0:v",                    # Use video from first input
-                "-map", "[a_out]",                # Use mixed audio
-                "-c:v", "copy",                   # Copy video stream without re-encoding
-                "-c:a", "aac",                    # Audio codec
-                "-b:a", "192k",                   # Audio bitrate
-                "-y",                            # Overwrite output file
-                str(output_video)
+                "-map",
+                "0:v",  # Use video from first input
+                "-map",
+                "[a_out]",  # Use mixed audio
+                "-c:v",
+                "copy",  # Copy video stream without re-encoding
+                "-c:a",
+                "aac",  # Audio codec
+                "-b:a",
+                "192k",  # Audio bitrate
+                "-y",  # Overwrite output file
+                str(output_video),
             ]
 
             self.logger.info(f"🔧 Running FFmpeg command: {' '.join(ffmpeg_cmd)}")
@@ -3603,14 +3536,18 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 ffmpeg_cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout
+                timeout=300,  # 5 minute timeout
             )
 
             if result.returncode == 0:
-                self.logger.info("✅ FFmpeg background music processing completed successfully")
+                self.logger.info(
+                    "✅ FFmpeg background music processing completed successfully"
+                )
                 return True
             else:
-                self.logger.error(f"❌ FFmpeg failed with return code: {result.returncode}")
+                self.logger.error(
+                    f"❌ FFmpeg failed with return code: {result.returncode}"
+                )
                 self.logger.error(f"❌ FFmpeg stderr: {result.stderr}")
                 return False
 
@@ -3641,7 +3578,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         # Mix the background music with original audio
         # If the video has audio, mix them; otherwise, just use background music
-        mix_filter = f"[0:a][bgm]amix=inputs=2:duration=longest:dropout_transition=2[a_out]"
+        mix_filter = (
+            "[0:a][bgm]amix=inputs=2:duration=longest:dropout_transition=2[a_out]"
+        )
 
         return bgm_filter + fade_filters + mix_filter
 
@@ -4360,7 +4299,14 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             preset="fast",  # Use faster preset for quicker encoding
             threads=4,
             logger=None,  # Explicitly set logger to None to avoid stdout issues
-            ffmpeg_params=['-crf', '23', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'],  # Ensure proper moov atom placement
+            ffmpeg_params=[
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+            ],  # Ensure proper moov atom placement
         )
 
         # Wait for progress monitoring to finish
@@ -4369,25 +4315,33 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         print("Video writing completed!")
 
         # Apply background music using FFmpeg if specified (post-processing approach)
-        if hasattr(self, 'background_music_info') and self.background_music_info:
+        if hasattr(self, "background_music_info") and self.background_music_info:
             try:
-                self.logger.info("🎵 Applying background music using FFmpeg post-processing...")
+                self.logger.info(
+                    "🎵 Applying background music using FFmpeg post-processing..."
+                )
 
                 # Create temporary file for the video with background music
-                temp_output = output_file.with_suffix('.temp_with_music.mp4')
+                temp_output = output_file.with_suffix(".temp_with_music.mp4")
 
                 # Apply background music using FFmpeg
                 if self._apply_background_music_ffmpeg(output_file, temp_output):
                     # Replace original file with the music-enhanced version
                     shutil.move(str(temp_output), str(output_file))
-                    self.logger.info("✅ Background music applied successfully using FFmpeg!")
+                    self.logger.info(
+                        "✅ Background music applied successfully using FFmpeg!"
+                    )
                 else:
-                    self.logger.warning("⚠️ Failed to apply background music, keeping original video")
+                    self.logger.warning(
+                        "⚠️ Failed to apply background music, keeping original video"
+                    )
                     if temp_output.exists():
                         temp_output.unlink()
 
             except Exception as bgm_error:
-                self.logger.error(f"❌ Background music post-processing failed: {bgm_error}")
+                self.logger.error(
+                    f"❌ Background music post-processing failed: {bgm_error}"
+                )
                 self.logger.info("🔄 Keeping original video without background music")
 
         print(f"Video created successfully: {output_file}")
@@ -4414,104 +4368,6 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         self.logger.info("Video generation process finished.")
 
 
-def parse_args():
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="AI Video Generator")
-
-    parser.add_argument("--folder", required=True, help="Project folder")
-    parser.add_argument(
-        "--sort",
-        choices=["alphnum", "random"],
-        default="alphnum",
-        help="Media material pickup order",
-    )
-    parser.add_argument(
-        "--keep-clip-length", action="store_true", help="Keep length of each clip"
-    )
-    parser.add_argument("--length", type=float, help="Result video length in seconds")
-    parser.add_argument("--clip-num", type=int, help="Number of clips")
-    parser.add_argument("--title", help="Title text at the beginning")
-    parser.add_argument(
-        "--keep-title",
-        action="store_true",
-        help="Keep title text across full video except closing clip",
-    )
-    parser.add_argument("--title-length", type=float, help="Seconds to show title")
-    parser.add_argument("--title-font", help="Font for title")
-    parser.add_argument(
-        "--title-font-size", type=int, default=72, help="Title font size (default: 72)"
-    )
-    parser.add_argument(
-        "--title-position",
-        type=float,
-        default=20,
-        help="Title position (percentage of screen height)",
-    )
-    parser.add_argument("--subtitle-font", help="Font for subtitle")
-    parser.add_argument(
-        "--subtitle-font-size",
-        type=int,
-        default=48,
-        help="Subtitle font size (default: 48)",
-    )
-    parser.add_argument(
-        "--subtitle-position",
-        type=float,
-        default=80,
-        help="Subtitle position (percentage of screen height)",
-    )
-    parser.add_argument(
-        "--clip-silent",
-        action="store_true",
-        default=True,
-        help="Make each clip silent (default: True)",
-    )
-    parser.add_argument(
-        "--gen-subtitle",
-        action="store_true",
-        default=False,
-        help="Generate subtitles using LLM or static files",
-    )
-    parser.add_argument(
-        "--gen-voice",
-        action="store_true",
-        default=False,
-        help="Generate voice using Volcengine TTS",
-    )
-    parser.add_argument(
-        "--llm-provider",
-        choices=["qwen", "grok", "glm", "ollama"],
-        default="qwen",
-        help="LLM provider for subtitle generation (default: qwen)",
-    )
-    parser.add_argument(
-        "--text",
-        help="Text file to use as subtitles (overrides other subtitle sources)",
-    )
-    parser.add_argument(
-        "--mp3",
-        help="Background music MP3 file path",
-    )
-    parser.add_argument(
-        "--bgm-fade-in",
-        type=float,
-        default=3.0,
-        help="Background music fade-in duration in seconds (default: 3.0)",
-    )
-    parser.add_argument(
-        "--bgm-fade-out",
-        type=float,
-        default=3.0,
-        help="Background music fade-out duration in seconds (default: 3.0)",
-    )
-    parser.add_argument(
-        "--bgm-volume",
-        type=float,
-        default=0.3,
-        help="Background music volume level (0.0-1.0, default: 0.3)",
-    )
-
-    return parser.parse_args()
 
 
 def main():
