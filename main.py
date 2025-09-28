@@ -10,6 +10,8 @@ import random
 import argparse
 import logging
 import time
+import subprocess
+import shutil
 from pathlib import Path
 from typing import TypeVar
 import json
@@ -21,11 +23,13 @@ from moviepy import (
     AudioFileClip,
     TextClip,
     CompositeVideoClip,
+    CompositeAudioClip,
     concatenate_videoclips,
     vfx,
     ImageClip,
 )
 from moviepy.video.fx import FadeIn, FadeOut
+# Removed audio effects imports to avoid subprocess issues
 import openai
 import dashscope
 from dotenv import load_dotenv
@@ -3494,6 +3498,153 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             self.logger.error(f"Error checking aspect ratio: {e}")
             return False
 
+    def _add_background_music(self, final_clip):
+        """Add background music with fade in/out effects to the final video"""
+        if not getattr(self.args, "mp3", None):
+            self.logger.info(
+                "No background music file specified, skipping background music"
+            )
+            return final_clip
+
+        bgm_file = Path(self.args.mp3)
+        if not bgm_file.exists():
+            self.logger.warning(f"Background music file not found: {bgm_file}")
+            return final_clip
+
+        try:
+            self.logger.info("🎵 Adding background music...")
+            self.logger.info(f"📁 Background music file: {bgm_file}")
+
+            # Get fade parameters
+            fade_in_duration = getattr(self.args, "bgm_fade_in", 3.0)
+            fade_out_duration = getattr(self.args, "bgm_fade_out", 3.0)
+            bgm_volume = getattr(self.args, "bgm_volume", 0.3)
+
+            # Validate parameters
+            fade_in_duration = max(0.0, fade_in_duration)
+            fade_out_duration = max(0.0, fade_out_duration)
+            bgm_volume = max(0.0, min(1.0, bgm_volume))
+
+            self.logger.info(f"⏱️  Fade-in duration: {fade_in_duration}s")
+            self.logger.info(f"⏱️  Fade-out duration: {fade_out_duration}s")
+            self.logger.info(f"🔊 Volume level: {bgm_volume:.2f}")
+
+            # Due to persistent FFmpeg subprocess issues with MoviePy audio mixing,
+            # we'll use a post-processing approach with FFmpeg directly
+            # This avoids the 'NoneType' object has no attribute 'stdout' error
+
+            # Store background music info for post-processing
+            self.background_music_info = {
+                'file': str(bgm_file),
+                'fade_in': fade_in_duration,
+                'fade_out': fade_out_duration,
+                'volume': bgm_volume,
+                'video_duration': final_clip.duration if final_clip else 0
+            }
+
+            self.logger.info("🎵 Background music will be added using FFmpeg post-processing")
+            self.logger.info("🔄 This avoids MoviePy audio mixing issues")
+
+            return final_clip
+
+        except Exception as e:
+            self.logger.error(f"❌ Failed to prepare background music: {e}")
+            self.logger.error(f"Error type: {type(e)}")
+            import traceback
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
+            self.logger.info("🔄 Continuing without background music...")
+            return final_clip
+
+    def _apply_background_music_ffmpeg(self, input_video, output_video):
+        """Apply background music to video using FFmpeg directly"""
+        try:
+            # Check if FFmpeg is available
+            if not shutil.which("ffmpeg"):
+                self.logger.error("❌ FFmpeg not found in PATH")
+                return False
+
+            bgm_info = self.background_music_info
+            bgm_file = bgm_info['file']
+            video_duration = bgm_info['video_duration']
+            bgm_volume = bgm_info['volume']
+            fade_in = bgm_info['fade_in']
+            fade_out = bgm_info['fade_out']
+
+            self.logger.info(f"🎵 Processing background music with FFmpeg...")
+            self.logger.info(f"📁 Input video: {input_video}")
+            self.logger.info(f"📁 Background music: {bgm_file}")
+            self.logger.info(f"⏱️  Video duration: {video_duration:.2f}s")
+            self.logger.info(f"🔊 Volume: {bgm_volume:.2f}x")
+            self.logger.info(f"🌅 Fade-in: {fade_in}s")
+            self.logger.info(f"🌇 Fade-out: {fade_out}s")
+
+            # Build FFmpeg command for audio mixing
+            # This approach uses FFmpeg's filter complex to mix audio properly
+            ffmpeg_cmd = [
+                "ffmpeg",
+                "-i", str(input_video),          # Input video
+                "-i", bgm_file,                  # Background music
+                "-filter_complex", self._build_ffmpeg_audio_filter(
+                    video_duration, bgm_volume, fade_in, fade_out
+                ),
+                "-map", "0:v",                    # Use video from first input
+                "-map", "[a_out]",                # Use mixed audio
+                "-c:v", "copy",                   # Copy video stream without re-encoding
+                "-c:a", "aac",                    # Audio codec
+                "-b:a", "192k",                   # Audio bitrate
+                "-y",                            # Overwrite output file
+                str(output_video)
+            ]
+
+            self.logger.info(f"🔧 Running FFmpeg command: {' '.join(ffmpeg_cmd)}")
+
+            # Run FFmpeg command
+            result = subprocess.run(
+                ffmpeg_cmd,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout
+            )
+
+            if result.returncode == 0:
+                self.logger.info("✅ FFmpeg background music processing completed successfully")
+                return True
+            else:
+                self.logger.error(f"❌ FFmpeg failed with return code: {result.returncode}")
+                self.logger.error(f"❌ FFmpeg stderr: {result.stderr}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"❌ FFmpeg background music processing failed: {e}")
+            return False
+
+    def _build_ffmpeg_audio_filter(self, duration, volume, fade_in, fade_out):
+        """Build FFmpeg audio filter complex string for background music"""
+        # Build the background music filter with volume
+        bgm_filter = f"[1:a]volume={volume}[bgm_vol];"
+
+        # Add fade effects as separate filters - use afade for audio
+        fade_filters = ""
+        if fade_in > 0 or fade_out > 0:
+            fade_filters = "[bgm_vol]"
+            if fade_in > 0:
+                fade_filters += f"afade=t=in:st=0:d={fade_in}"
+            if fade_out > 0:
+                fade_out_start = max(0, duration - fade_out)
+                if fade_in > 0:
+                    fade_filters += f",afade=t=out:st={fade_out_start}:d={fade_out}"
+                else:
+                    fade_filters += f"afade=t=out:st={fade_out_start}:d={fade_out}"
+            fade_filters += "[bgm];"
+        else:
+            fade_filters = "[bgm_vol][bgm];"
+
+        # Mix the background music with original audio
+        # If the video has audio, mix them; otherwise, just use background music
+        mix_filter = f"[0:a][bgm]amix=inputs=2:duration=longest:dropout_transition=2[a_out]"
+
+        return bgm_filter + fade_filters + mix_filter
+
     def _split_long_subtitle_text(self, text, max_length=14):
         """Split long subtitle text into multiple lines for mobile display"""
         # First, check if text needs splitting based on visual width rather than character count
@@ -4096,6 +4247,15 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         self.logger.info(f"Final video duration: {final_clip.duration:.2f}s")
 
+        # Step 7.5: Add background music if specified
+        if getattr(self.args, "mp3", None):
+            self.logger.info("Step 7.5: Adding background music...")
+            print("🎵 Step 7.5: Adding background music...")
+            final_clip = self._add_background_music(final_clip)
+            self.logger.info(
+                f"Final video duration after adding background music: {final_clip.duration:.2f}s"
+            )
+
         # Write output file
         output_file = self.project_folder / "output.mp4"
         self.logger.info(f"Writing video to: {output_file}")
@@ -4197,15 +4357,38 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             codec="libx264",
             audio_codec="aac",
             fps=24,
-            preset="medium",
+            preset="fast",  # Use faster preset for quicker encoding
             threads=4,
-            logger=None,
+            logger=None,  # Explicitly set logger to None to avoid stdout issues
+            ffmpeg_params=['-crf', '23', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'],  # Ensure proper moov atom placement
         )
 
         # Wait for progress monitoring to finish
         progress_thread.join(timeout=5)
 
         print("Video writing completed!")
+
+        # Apply background music using FFmpeg if specified (post-processing approach)
+        if hasattr(self, 'background_music_info') and self.background_music_info:
+            try:
+                self.logger.info("🎵 Applying background music using FFmpeg post-processing...")
+
+                # Create temporary file for the video with background music
+                temp_output = output_file.with_suffix('.temp_with_music.mp4')
+
+                # Apply background music using FFmpeg
+                if self._apply_background_music_ffmpeg(output_file, temp_output):
+                    # Replace original file with the music-enhanced version
+                    shutil.move(str(temp_output), str(output_file))
+                    self.logger.info("✅ Background music applied successfully using FFmpeg!")
+                else:
+                    self.logger.warning("⚠️ Failed to apply background music, keeping original video")
+                    if temp_output.exists():
+                        temp_output.unlink()
+
+            except Exception as bgm_error:
+                self.logger.error(f"❌ Background music post-processing failed: {bgm_error}")
+                self.logger.info("🔄 Keeping original video without background music")
 
         print(f"Video created successfully: {output_file}")
         self.logger.info(f"Video generation completed successfully: {output_file}")
@@ -4304,6 +4487,28 @@ def parse_args():
     parser.add_argument(
         "--text",
         help="Text file to use as subtitles (overrides other subtitle sources)",
+    )
+    parser.add_argument(
+        "--mp3",
+        help="Background music MP3 file path",
+    )
+    parser.add_argument(
+        "--bgm-fade-in",
+        type=float,
+        default=3.0,
+        help="Background music fade-in duration in seconds (default: 3.0)",
+    )
+    parser.add_argument(
+        "--bgm-fade-out",
+        type=float,
+        default=3.0,
+        help="Background music fade-out duration in seconds (default: 3.0)",
+    )
+    parser.add_argument(
+        "--bgm-volume",
+        type=float,
+        default=0.3,
+        help="Background music volume level (0.0-1.0, default: 0.3)",
     )
 
     return parser.parse_args()
