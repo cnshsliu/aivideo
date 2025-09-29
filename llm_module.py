@@ -191,8 +191,13 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             # Store original subtitles for voice generation (with punctuation)
             voice_subtitles = raw_subtitles
 
-            # For display subtitles, just use the same subtitles since optimization is handled in videoGenerator.py
-            display_subtitles = raw_subtitles
+            # For display subtitles, remove ending punctuation from each line
+            display_subtitles = []
+            for subtitle in raw_subtitles:
+                # Remove ending punctuation (Chinese period, exclamation mark, question mark, comma)
+                if subtitle.endswith(('。', '！', '？', '，')):
+                    subtitle = subtitle[:-1]
+                display_subtitles.append(subtitle)
 
             # Save both versions
             voice_file = subtitle_folder / "voice_subtitles.txt"
