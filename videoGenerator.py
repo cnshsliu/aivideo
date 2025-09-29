@@ -21,7 +21,6 @@ from moviepy import (
 from moviepy.video.fx import FadeIn, FadeOut
 
 # Removed audio effects imports to avoid subprocess issues
-import openai
 import websockets
 import uuid
 import struct
@@ -42,9 +41,6 @@ from utils_module import (
     split_mixed_text,
     should_split_mixed_text,
     clean_punctuation,
-    split_by_punctuation,
-    split_by_em_dash,
-    split_by_length,
     split_long_subtitle_text,
     calculate_safe_max_chars,
     estimate_speaking_time,
@@ -200,38 +196,6 @@ class VideoGenerator:
             return split_mixed_text(subtitle, 20)
         else:
             return split_by_chinese_count(subtitle, 20)
-        """Log generated subtitles with detailed information"""
-        if not self.subtitles:
-            self.logger.warning("No subtitles to log")
-            return
-
-        self.logger.info(f"=== GENERATED SUBTILES ({source}) ===")
-        self.logger.info(f"Total subtitles: {len(self.subtitles)}")
-
-        for i, subtitle in enumerate(self.subtitles, 1):
-            self.logger.info(
-                f"Subtitle {i}: '{subtitle}' (length: {len(subtitle)} chars)"
-            )
-
-        self.logger.info("=== END SUBTILES ===")
-
-        # Also save subtitles to a dedicated file
-        subtitle_file = (
-            self.project_folder
-            / "logs"
-            / f"subtitles_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        )
-        with open(subtitle_file, "w", encoding="utf-8") as f:
-            f.write(f"Generated Subtitles ({source})\n")
-            f.write(f"Project: {self.project_folder}\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Total: {len(self.subtitles)} subtitles\n")
-            f.write("=" * 50 + "\n\n")
-
-            for i, subtitle in enumerate(self.subtitles, 1):
-                f.write(f"{i}. {subtitle}\n")
-
-        self.logger.info(f"Subtitles saved to: {subtitle_file}")
 
     def scan_media_files(self):
         """Scan media folder and identify special files"""
@@ -331,8 +295,8 @@ class VideoGenerator:
                         if raw_subtitles:
                             # Create both voice and display versions
                             self.voice_subtitles = raw_subtitles
-                            # Use the same subtitles for both voice and display since we're not optimizing
-                            self.display_subtitles = raw_subtitles
+                            # Create display-optimized subtitles (without unnecessary punctuation)
+                            self.display_subtitles = self._optimize_subtitles(raw_subtitles)
                             self.subtitles = self.display_subtitles
 
                             # Save both versions for future use
@@ -366,91 +330,6 @@ class VideoGenerator:
         )
         return mapping
 
-    def _optimize_subtitles(self, raw_subtitles):
-        """Optimize subtitles for display while preserving timing relationships.
-        With new LLM prompt requirements, subtitles should already be properly formatted."""
-        self.logger.info(f"Optimizing {len(raw_subtitles)} raw subtitles for display")
-
-        if not raw_subtitles:
-            return []
-
-        display_subtitles = []
-        subtitle_mapping = []  # Maps display subtitle index to original voice subtitle index
-
-        # Ensure voice subtitles are properly formatted (with periods)
-        cleaned_voice_subtitles = []
-        for subtitle in raw_subtitles:
-            cleaned_subtitle = self._clean_and_validate_subtitle(subtitle)
-            cleaned_voice_subtitles.append(cleaned_subtitle)
-
-        # Update voice subtitles with cleaned versions
-        self.voice_subtitles = cleaned_voice_subtitles
-
-        # Generate display subtitles (without trailing periods)
-        for idx, voice_subtitle in enumerate(self.voice_subtitles):
-            # For display subtitles, remove trailing periods
-            display_subtitle = self._remove_trailing_period(voice_subtitle)
-
-            # Split into multiple lines if still too long (fallback)
-            if self._needs_splitting(voice_subtitle):
-                chunks = self._split_long_subtitle(voice_subtitle)
-                # Remove trailing periods from display chunks
-                display_chunks = [
-                    self._remove_trailing_period(chunk) for chunk in chunks
-                ]
-                display_subtitles.extend(display_chunks)
-                # Each chunk maps to the same original subtitle
-                subtitle_mapping.extend([idx] * len(chunks))
-            else:
-                display_subtitles.append(display_subtitle)
-                subtitle_mapping.append(idx)
-
-        self.logger.info(
-            f"Generated {len(display_subtitles)} display subtitles from {len(raw_subtitles)} voice subtitles"
-        )
-
-        # Store the mapping for later use in timestamp calculation
-        self.display_to_voice_mapping = subtitle_mapping
-
-        return display_subtitles
-
-    def _clean_and_validate_subtitle(self, subtitle):
-        """Clean and validate a single subtitle to ensure it meets requirements"""
-        # Remove extra whitespace
-        cleaned = subtitle.strip()
-
-        # Ensure it ends with proper punctuation (prefer period)
-        if (
-            not cleaned.endswith("。")
-            and not cleaned.endswith("！")
-            and not cleaned.endswith("？")
-        ):
-            cleaned += "。"
-
-        # Clean any other punctuation issues while preserving sentence structure
-        cleaned = clean_punctuation(cleaned)
-
-        return cleaned
-
-    def _remove_trailing_period(self, text):
-        """Remove trailing period from text for display subtitles"""
-        if text.endswith("。"):
-            return text[:-1].strip()
-        return text
-
-    def _needs_splitting(self, subtitle):
-        """Check if subtitle needs to be split due to length"""
-        length = calculate_display_length(subtitle)
-        return length > 20  # Maximum 20 characters
-
-    def _split_long_subtitle(self, subtitle):
-        """Split a long subtitle into appropriate chunks"""
-        # Try to split at punctuation first
-        if should_split_mixed_text(subtitle):
-            return split_mixed_text(subtitle, 20)
-        else:
-            return split_by_chinese_count(subtitle, 20)
-
     def load_text_file_subtitles(self, text_file_path):
         """Load subtitles from specified text file and create voice/display versions"""
         text_file = Path(text_file_path)
@@ -467,8 +346,7 @@ class VideoGenerator:
                     ]
 
                     # Create display-optimized subtitles (without unnecessary punctuation)
-                    # Use the same subtitles for both voice and display since we're not optimizing
-                    self.display_subtitles = self.voice_subtitles
+                    self.display_subtitles = self._optimize_subtitles(self.voice_subtitles)
 
                     # Use display subtitles for main workflow
                     self.subtitles = self.display_subtitles
@@ -537,8 +415,7 @@ class VideoGenerator:
         self.voice_subtitles = raw_subtitles
 
         # Create display-optimized subtitles (without unnecessary punctuation)
-        # Use the same subtitles for both voice and display since we're not optimizing
-        self.display_subtitles = self.voice_subtitles
+        self.display_subtitles = self._optimize_subtitles(raw_subtitles)
 
         # Use display subtitles for the main workflow (backward compatibility)
         self.subtitles = self.display_subtitles
@@ -572,10 +449,6 @@ class VideoGenerator:
         prompt_file = self.prompt_folder / "prompt.md"
         if not prompt_file.exists():
             raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
-
-        # Read the prompt
-        with open(prompt_file, "r", encoding="utf-8") as f:
-            prompt_content = f.read()
 
         # Generate subtitles using LLMManager
         self.voice_subtitles, self.display_subtitles = self.llm_manager.generate_subtitles(
