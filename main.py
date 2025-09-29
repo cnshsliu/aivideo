@@ -33,8 +33,10 @@ import uuid
 import struct
 import io
 import asyncio
+
 # Import configuration module
 from config_module import Config, parse_args
+
 # Import utility functions
 from utils_module import (
     contains_chinese,
@@ -53,7 +55,7 @@ from utils_module import (
     estimate_speaking_time,
     get_chinese_compatible_font,
     get_system_fonts,
-    find_chinese_font_in_system
+    find_chinese_font_in_system,
 )
 
 # Type annotations for MoviePy objects
@@ -63,7 +65,6 @@ TextClipType = TypeVar("TextClipType")
 ImageClipType = TypeVar("ImageClipType")
 CompositeVideoClipType = TypeVar("CompositeVideoClipType")
 AudioClipType = TypeVar("AudioClipType")
-
 
 
 class VideoGenerator:
@@ -93,8 +94,6 @@ class VideoGenerator:
         self.display_to_voice_mapping = []  # Maps display subtitle index to voice subtitle index
         self.audio_file = None
 
-        
-    
     def _log_subtitles(self, source="unknown"):
         """Log generated subtitles with detailed information"""
         if not self.subtitles:
@@ -129,7 +128,6 @@ class VideoGenerator:
 
         self.logger.info(f"Subtitles saved to: {subtitle_file}")
 
-    
     def scan_media_files(self):
         """Scan media folder and identify special files"""
         # Find all media files (videos and images)
@@ -427,9 +425,7 @@ class VideoGenerator:
 
             if llm_config:
                 display_name = llm_config.get("display_name", "unknown")
-                self.logger.info(
-                    f"Using LLM provider: {display_name} ({provider})"
-                )
+                self.logger.info(f"Using LLM provider: {display_name} ({provider})")
             else:
                 self.logger.info(f"Using LLM provider: {provider}")
             self.logger.info(f"Model: {model_name}")
@@ -565,14 +561,10 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             if llm_config:
                 display_name = llm_config.get("display_name", "unknown")
-                print(
-                    f"Generated {len(self.subtitles)} subtitles using {display_name}"
-                )
+                print(f"Generated {len(self.subtitles)} subtitles using {display_name}")
                 self._log_subtitles(f"LLM - {display_name} ({provider})")
             else:
-                print(
-                    f"Generated {len(self.subtitles)} subtitles using {provider}"
-                )
+                print(f"Generated {len(self.subtitles)} subtitles using {provider}")
                 self._log_subtitles(f"LLM - {provider}")
 
         except Exception as e:
@@ -1022,8 +1014,6 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             # Fallback: equal distribution based on display subtitles
             self._create_fallback_timestamps()
 
-    
-
     def _optimize_subtitles(self, raw_subtitles):
         """Optimize subtitles for display while preserving timing relationships.
         With new LLM prompt requirements, subtitles should already be properly formatted."""
@@ -1159,9 +1149,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             if len(parts) > 1:
                 # Clean each part (remove unnecessary punctuation)
                 cleaned_parts = [
-                    clean_punctuation(part.strip())
-                    for part in parts
-                    if part.strip()
+                    clean_punctuation(part.strip()) for part in parts if part.strip()
                 ]
                 # Filter out empty parts and ensure reasonable length
                 # But keep transition words like "首先", "其次", etc.
@@ -1256,23 +1244,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         # If no punctuation-based splits work, use length-based splitting
         return split_by_length(subtitle)
 
-    # Add remaining part
+        # Add remaining part
         if current_part.strip():
             parts.append(current_part)
 
         return parts
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     def _create_fallback_timestamps(self):
         """Create fallback timestamps with equal distribution based on display subtitles"""
@@ -2310,8 +2286,6 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             # Fallback to basic title
             return self._add_title_basic(clip, use_full_duration)
 
-    
-
     def _create_srt_subtitle_file(self):
         """Create SRT subtitle file with calculated timestamps"""
         if not hasattr(self, "subtitle_timestamps") or not self.subtitle_timestamps:
@@ -2559,15 +2533,11 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     max_text_width = int(
                         video_clip.w * 0.65
                     )  # Reduced to 65% for mobile safety
-                    max_chars_per_line = calculate_safe_max_chars(
-                        text, max_text_width
-                    )
+                    max_chars_per_line = calculate_safe_max_chars(text, max_text_width)
                     self.logger.info(
                         f"Dynamic character limit: {max_chars_per_line} chars for text: '{text[:30]}...'"
                     )
-                    text_lines = split_long_subtitle_text(
-                        text, max_chars_per_line
-                    )
+                    text_lines = split_long_subtitle_text(text, max_chars_per_line)
 
                     # If text was split into multiple lines, create separate text clips for each line
                     if len(text_lines) > 1:
@@ -3103,12 +3073,10 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
         # Mix the background music with original audio
         # If the video has audio, mix them; otherwise, just use background music
         mix_filter = (
-            "[0:a][bgm]amix=inputs=2:duration=longest:dropout_transition=2[a_out]"
+            "[0:a][bgm]amix=inputs=2:duration=shortest:dropout_transition=2[a_out]"
         )
 
         return bgm_filter + fade_filters + mix_filter
-
-    
 
     def _regenerate_with_mobile_portrait_ratio(
         self, video_file, current_width, current_height
@@ -3802,7 +3770,35 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
         self.logger.info("Video generation process finished.")
 
+        # Show video length after generation
+        self._show_video_length(output_file)
 
+    def _show_video_length(self, video_path):
+        """Show the duration of the generated video file."""
+        try:
+            from moviepy import VideoFileClip
+
+            # Load the video file
+            clip = VideoFileClip(str(video_path))
+
+            # Get the duration in seconds
+            duration = clip.duration
+
+            # Close the clip to free resources
+            clip.close()
+
+            # Convert to minutes and seconds for better readability
+            minutes = int(duration // 60)
+            seconds = int(duration % 60)
+            milliseconds = int((duration % 1) * 1000)
+
+            print(f"🎬 Generated video duration: {duration:.3f} seconds")
+            print(
+                f"   Duration: {minutes} minutes, {seconds} seconds, {milliseconds} milliseconds"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Failed to get video duration: {e}")
 
 
 def main():
