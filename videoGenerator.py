@@ -28,6 +28,7 @@ import io
 import asyncio
 
 # Import configuration module
+from subtitle_processor import SubtitleProcessor
 from config_module import Config
 
 # Import LLM module
@@ -36,14 +37,8 @@ from llm_module import LLMManager
 # Import utility functions
 from utils_module import (
     contains_chinese,
-    calculate_display_length,
-    split_by_chinese_count,
-    split_mixed_text,
-    should_split_mixed_text,
-    clean_punctuation,
     split_long_subtitle_text,
     calculate_safe_max_chars,
-    estimate_speaking_time,
     get_chinese_compatible_font,
 )
 
@@ -71,6 +66,8 @@ class VideoGenerator:
         self.subtitle_folder = self.project_folder / "subtitle"
         self.logger = self.config.logger
         self.llm_manager = LLMManager(self.config)
+        # Initialize subtitle processor
+        self.subtitle_processor = SubtitleProcessor(self.logger)
 
         # Media files list
         self.media_files = []
@@ -89,113 +86,89 @@ class VideoGenerator:
         if not self.subtitles:
             self.logger.warning("No subtitles to log")
             return
-        
+
         self.logger.info(f"=== GENERATED SUBTILES ({source}) ===")
         self.logger.info(f"Total subtitles: {len(self.subtitles)}")
-        
+
         for i, subtitle in enumerate(self.subtitles, 1):
-            self.logger.info(f"Subtitle {i}: '{subtitle}' (length: {len(subtitle)} chars)")
-        
+            self.logger.info(
+                f"Subtitle {i}: '{subtitle}' (length: {len(subtitle)} chars)"
+            )
+
         self.logger.info("=== END SUBTILES ===")
-        
+
         # Also save subtitles to a dedicated file
-        subtitle_file = self.project_folder / "logs" / f"subtitles_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        with open(subtitle_file, 'w', encoding='utf-8') as f:
+        subtitle_file = (
+            self.project_folder
+            / "logs"
+            / f"subtitles_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        )
+        with open(subtitle_file, "w", encoding="utf-8") as f:
             f.write(f"Generated Subtitles ({source})\n")
             f.write(f"Project: {self.project_folder}\n")
             f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Total: {len(self.subtitles)} subtitles\n")
             f.write("=" * 50 + "\n\n")
-            
+
             for i, subtitle in enumerate(self.subtitles, 1):
                 f.write(f"{i}. {subtitle}\n")
-        
+
         self.logger.info(f"Subtitles saved to: {subtitle_file}")
 
+    # Subtitle processing wrapper methods
     def _optimize_subtitles(self, raw_subtitles):
-        """Optimize subtitles for display while preserving timing relationships.
-        With new LLM prompt requirements, subtitles should already be properly formatted."""
-        self.logger.info(f"Optimizing {len(raw_subtitles)} raw subtitles for display")
+        """Optimize subtitles for display while preserving timing relationships."""
+        # Set up subtitle processor with current state
+        self.subtitle_processor.voice_subtitles = self.voice_subtitles
+        self.subtitle_processor.display_subtitles = self.display_subtitles
+        self.subtitle_processor.display_to_voice_mapping = self.display_to_voice_mapping
 
-        if not raw_subtitles:
-            return []
+        # Call subtitle processor
+        result = self.subtitle_processor._optimize_subtitles(raw_subtitles)
 
-        display_subtitles = []
-        subtitle_mapping = []  # Maps display subtitle index to original voice subtitle index
+        # Update state from subtitle processor
+        self.voice_subtitles = self.subtitle_processor.voice_subtitles
+        self.display_subtitles = self.subtitle_processor.display_subtitles
+        self.display_to_voice_mapping = self.subtitle_processor.display_to_voice_mapping
 
-        # Ensure voice subtitles are properly formatted (with periods)
-        cleaned_voice_subtitles = []
-        for subtitle in raw_subtitles:
-            cleaned_subtitle = self._clean_and_validate_subtitle(subtitle)
-            cleaned_voice_subtitles.append(cleaned_subtitle)
+        return result
 
-        # Update voice subtitles with cleaned versions
-        self.voice_subtitles = cleaned_voice_subtitles
+    def _calculate_subtitle_timestamps(self):
+        """Calculate intelligent timestamps for display subtitles based on voice subtitles and audio duration"""
+        # Set up subtitle processor with current state
+        self.subtitle_processor.subtitle_folder = self.subtitle_folder
+        self.subtitle_processor.audio_file = self.audio_file
+        self.subtitle_processor.voice_subtitles = self.voice_subtitles
+        self.subtitle_processor.display_subtitles = self.display_subtitles
+        self.subtitle_processor.display_to_voice_mapping = self.display_to_voice_mapping
 
-        # Generate display subtitles (without trailing periods)
-        for idx, voice_subtitle in enumerate(self.voice_subtitles):
-            # For display subtitles, remove trailing periods
-            display_subtitle = self._remove_trailing_period(voice_subtitle)
+        # Call subtitle processor
+        self.subtitle_processor._calculate_subtitle_timestamps()
 
-            # Split into multiple lines if still too long (fallback)
-            if self._needs_splitting(voice_subtitle):
-                chunks = self._split_long_subtitle(voice_subtitle)
-                # Remove trailing periods from display chunks
-                display_chunks = [
-                    self._remove_trailing_period(chunk) for chunk in chunks
-                ]
-                display_subtitles.extend(display_chunks)
-                # Each chunk maps to the same original subtitle
-                subtitle_mapping.extend([idx] * len(chunks))
-            else:
-                display_subtitles.append(display_subtitle)
-                subtitle_mapping.append(idx)
+        # Update state from subtitle processor
+        self.subtitle_timestamps = self.subtitle_processor.subtitle_timestamps
 
-        self.logger.info(
-            f"Generated {len(display_subtitles)} display subtitles from {len(raw_subtitles)} voice subtitles"
-        )
+    def _create_fallback_timestamps(self):
+        """Create fallback timestamps with equal distribution based on display subtitles"""
+        # Set up subtitle processor with current state
+        self.subtitle_processor.subtitle_folder = self.subtitle_folder
+        self.subtitle_processor.audio_file = self.audio_file
+        self.subtitle_processor.display_subtitles = self.display_subtitles
 
-        # Store the mapping for later use in timestamp calculation
-        self.display_to_voice_mapping = subtitle_mapping
+        # Call subtitle processor
+        self.subtitle_processor._create_fallback_timestamps()
 
-        return display_subtitles
+        # Update state from subtitle processor
+        self.subtitle_timestamps = self.subtitle_processor.subtitle_timestamps
 
-    def _clean_and_validate_subtitle(self, subtitle):
-        """Clean and validate a single subtitle to ensure it meets requirements"""
-        # Remove extra whitespace
-        cleaned = subtitle.strip()
+    def _create_srt_subtitle_file(self):
+        """Create SRT subtitle file from timestamps"""
+        # Set up subtitle processor with current state
+        self.subtitle_processor.subtitle_folder = self.subtitle_folder
+        self.subtitle_processor.subtitle_timestamps = self.subtitle_timestamps
 
-        # Ensure it ends with proper punctuation (prefer period)
-        if (
-            not cleaned.endswith("。")
-            and not cleaned.endswith("！")
-            and not cleaned.endswith("？")
-        ):
-            cleaned += "。"
-
-        # Clean any other punctuation issues while preserving sentence structure
-        cleaned = clean_punctuation(cleaned)
-
-        return cleaned
-
-    def _remove_trailing_period(self, text):
-        """Remove trailing period from text for display subtitles"""
-        if text.endswith("。"):
-            return text[:-1].strip()
-        return text
-
-    def _needs_splitting(self, subtitle):
-        """Check if subtitle needs to be split due to length"""
-        length = calculate_display_length(subtitle)
-        return length > 20  # Maximum 20 characters
-
-    def _split_long_subtitle(self, subtitle):
-        """Split a long subtitle into appropriate chunks"""
-        # Try to split at punctuation first
-        if should_split_mixed_text(subtitle):
-            return split_mixed_text(subtitle, 20)
-        else:
-            return split_by_chinese_count(subtitle, 20)
+        # Call subtitle processor
+        self.subtitle_processor._create_srt_subtitle_file()
 
     def scan_media_files(self):
         """Scan media folder and identify special files"""
@@ -272,8 +245,10 @@ class VideoGenerator:
                         self.display_subtitles
                     )  # Use display for main workflow
                     # Create display-to-voice mapping for timestamp calculation
-                    self.display_to_voice_mapping = self._create_display_voice_mapping(
-                        self.voice_subtitles, self.display_subtitles
+                    self.display_to_voice_mapping = (
+                        self.subtitle_processor._create_display_voice_mapping(
+                            self.voice_subtitles, self.display_subtitles
+                        )
                     )
                     print(
                         f"Loaded {len(self.voice_subtitles)} voice subtitles and {len(self.display_subtitles)} display subtitles"
@@ -296,7 +271,9 @@ class VideoGenerator:
                             # Create both voice and display versions
                             self.voice_subtitles = raw_subtitles
                             # Create display-optimized subtitles (without unnecessary punctuation)
-                            self.display_subtitles = self._optimize_subtitles(raw_subtitles)
+                            self.display_subtitles = self._optimize_subtitles(
+                                raw_subtitles
+                            )
                             self.subtitles = self.display_subtitles
 
                             # Save both versions for future use
@@ -312,23 +289,6 @@ class VideoGenerator:
             except Exception as e:
                 print(f"Error loading existing subtitles: {e}")
         return False
-
-    def _create_display_voice_mapping(self, voice_subtitles, display_subtitles):
-        """Create mapping between display and voice subtitles for timestamp calculation"""
-        # For existing subtitles, assume 1:1 mapping as a simple fallback
-        # This ensures timestamp calculation works correctly
-        mapping = []
-        for i in range(min(len(display_subtitles), len(voice_subtitles))):
-            mapping.append(i)
-
-        # If there are more display subtitles, map them to the last voice subtitle
-        while len(mapping) < len(display_subtitles):
-            mapping.append(len(voice_subtitles) - 1)
-
-        self.logger.info(
-            f"Created display-voice mapping: {len(display_subtitles)} display -> {len(voice_subtitles)} voice"
-        )
-        return mapping
 
     def load_text_file_subtitles(self, text_file_path):
         """Load subtitles from specified text file and create voice/display versions"""
@@ -346,7 +306,9 @@ class VideoGenerator:
                     ]
 
                     # Create display-optimized subtitles (without unnecessary punctuation)
-                    self.display_subtitles = self._optimize_subtitles(self.voice_subtitles)
+                    self.display_subtitles = self._optimize_subtitles(
+                        self.voice_subtitles
+                    )
 
                     # Use display subtitles for main workflow
                     self.subtitles = self.display_subtitles
@@ -451,17 +413,19 @@ class VideoGenerator:
             raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
         # Generate subtitles using LLMManager
-        self.voice_subtitles, self.display_subtitles = self.llm_manager.generate_subtitles(
-            self.args, self.prompt_folder, self.subtitle_folder, self.logger
+        self.voice_subtitles, self.display_subtitles = (
+            self.llm_manager.generate_subtitles(
+                self.args, self.prompt_folder, self.subtitle_folder, self.logger
+            )
         )
-        
+
         # Optimize display subtitles
         self.display_subtitles = self._optimize_subtitles(self.voice_subtitles)
-        
+
         # Use display subtitles for the main workflow (backward compatibility)
         self.subtitles = self.display_subtitles
         self._log_subtitles("LLM - Generated")
-        
+
         return True
 
     def generate_audio(self):
@@ -745,165 +709,6 @@ class VideoGenerator:
         print(f"Raw data length: {len(data)}")
         print(f"Raw data (hex): {data.hex()}")
         await websocket.send(data)
-
-    def _calculate_subtitle_timestamps(self):
-        """Calculate intelligent timestamps for display subtitles based on voice subtitles and audio duration"""
-        if (
-            not hasattr(self, "audio_file")
-            or self.audio_file is None
-            or not self.audio_file.exists()
-        ):
-            raise ValueError("Audio file not available for timestamp calculation")
-
-        try:
-            # Load audio file to get duration
-            from moviepy import AudioFileClip
-
-            audio_clip = AudioFileClip(str(self.audio_file))
-            total_duration = audio_clip.duration
-            audio_clip.close()
-
-            self.logger.info(f"Audio duration: {total_duration:.2f}s")
-            self.logger.info(f"Voice subtitles: {len(self.voice_subtitles)}")
-            self.logger.info(f"Display subtitles: {len(self.display_subtitles)}")
-
-            # Calculate timing based on voice subtitles (with punctuation)
-            voice_estimates = []
-            total_voice_time = 0
-
-            for voice_subtitle in self.voice_subtitles:
-                estimated_time = estimate_speaking_time(voice_subtitle)
-                voice_estimates.append(estimated_time)
-                total_voice_time += estimated_time
-
-            self.logger.info(f"Total voice speaking time: {total_voice_time:.2f}s")
-
-            # Adjust voice timing to fit audio duration
-            if total_voice_time > total_duration:
-                # Scale down to fit
-                scale_factor = total_duration / total_voice_time
-                self.logger.info(f"Scaling voice timing by factor: {scale_factor:.3f}")
-                voice_estimates = [time * scale_factor for time in voice_estimates]
-            elif total_voice_time < total_duration:
-                # Distribute extra time proportionally
-                extra_time = total_duration - total_voice_time
-                proportional_extra = [
-                    extra_time * (time / total_voice_time) for time in voice_estimates
-                ]
-                voice_estimates = [
-                    voice_estimates[i] + proportional_extra[i]
-                    for i in range(len(voice_estimates))
-                ]
-
-            # Map voice subtitle timing to display subtitles using the mapping created during optimization
-            self.subtitle_timestamps = []
-
-            # Calculate voice subtitle start times
-            voice_start_times = []
-            voice_accumulated = 0.0
-            for voice_duration in voice_estimates:
-                voice_start_times.append(voice_accumulated)
-                voice_accumulated += voice_duration
-
-            # Group display subtitles by their original voice subtitle
-            display_groups = {}
-            for display_idx, voice_idx in enumerate(self.display_to_voice_mapping):
-                if voice_idx not in display_groups:
-                    display_groups[voice_idx] = []
-                display_groups[voice_idx].append(display_idx)
-
-            # Calculate timing for each voice subtitle group
-            for voice_idx, display_indices in display_groups.items():
-                voice_start_time = voice_start_times[voice_idx]
-                voice_duration = voice_estimates[voice_idx]
-
-                # Distribute voice subtitle time among its display subtitles
-                num_display_subtitles = len(display_indices)
-                time_per_display = voice_duration / num_display_subtitles
-
-                for i, display_idx in enumerate(display_indices):
-                    display_subtitle = self.display_subtitles[display_idx]
-
-                    # Calculate start and end times for this display subtitle
-                    start_time = voice_start_time + (i * time_per_display)
-                    end_time = start_time + time_per_display
-
-                    self.subtitle_timestamps.append(
-                        {
-                            "index": display_idx + 1,
-                            "text": display_subtitle,
-                            "start_time": start_time,
-                            "end_time": end_time,
-                            "duration": time_per_display,
-                        }
-                    )
-
-                    self.logger.info(
-                        f"Display subtitle {display_idx + 1}: '{display_subtitle[:30]}...' -> {start_time:.2f}s to {end_time:.2f}s ({time_per_display:.2f}s)"
-                    )
-
-            # Sort by start time to ensure proper ordering
-            self.subtitle_timestamps.sort(key=lambda x: x["start_time"])
-
-            # Update indices after sorting
-            for idx, timestamp in enumerate(self.subtitle_timestamps):
-                timestamp["index"] = idx + 1
-
-            self.logger.info(
-                f"Generated {len(self.subtitle_timestamps)} timed display subtitles"
-            )
-
-            # Create SRT subtitle file using display subtitles
-            self._create_srt_subtitle_file()
-
-        except Exception as e:
-            self.logger.error(f"Failed to calculate subtitle timestamps: {e}")
-            # Fallback: equal distribution based on display subtitles
-            self._create_fallback_timestamps()
-
-    def _create_fallback_timestamps(self):
-        """Create fallback timestamps with equal distribution based on display subtitles"""
-        if (
-            not hasattr(self, "audio_file")
-            or self.audio_file is None
-            or not self.audio_file.exists()
-        ):
-            return
-
-        try:
-            from moviepy import AudioFileClip
-
-            audio_clip = AudioFileClip(str(self.audio_file))
-            total_duration = audio_clip.duration
-            audio_clip.close()
-
-            self.subtitle_timestamps = []
-            duration_per_subtitle = total_duration / len(self.display_subtitles)
-            current_time = 0.0
-
-            for i, subtitle in enumerate(self.display_subtitles):
-                start_time = current_time
-                end_time = current_time + duration_per_subtitle
-
-                self.subtitle_timestamps.append(
-                    {
-                        "index": i + 1,
-                        "text": subtitle,
-                        "start_time": start_time,
-                        "end_time": end_time,
-                        "duration": duration_per_subtitle,
-                    }
-                )
-
-                current_time = end_time
-
-            self.logger.info(
-                "Created fallback timestamps with equal distribution for display subtitles"
-            )
-            self._create_srt_subtitle_file()
-
-        except Exception as e:
-            self.logger.error(f"Failed to create fallback timestamps: {e}")
 
     def process_media_clips(self):
         """Process media clips according to specifications"""
@@ -1897,71 +1702,6 @@ class VideoGenerator:
             # Fallback to basic title
             return self._add_title_basic(clip, use_full_duration)
 
-    def _create_srt_subtitle_file(self):
-        """Create SRT subtitle file with calculated timestamps"""
-        if not hasattr(self, "subtitle_timestamps") or not self.subtitle_timestamps:
-            self.logger.error("No subtitle timestamps available for SRT file creation")
-            return False
-
-        try:
-            srt_file_path = self.subtitle_folder / "subtitles.srt"
-
-            with open(srt_file_path, "w", encoding="utf-8") as f:
-                for subtitle_info in self.subtitle_timestamps:
-                    # SRT format:
-                    # 1
-                    # 00:00:01,000 --> 00:00:04,000
-                    # Hello world
-
-                    index = subtitle_info["index"]
-                    start_time = subtitle_info["start_time"]
-                    end_time = subtitle_info["end_time"]
-                    text = subtitle_info["text"]
-
-                    # Convert seconds to SRT time format (HH:MM:SS,mmm)
-                    def format_time(seconds):
-                        hours = int(seconds // 3600)
-                        minutes = int((seconds % 3600) // 60)
-                        secs = int(seconds % 60)
-                        milliseconds = int((seconds % 1) * 1000)
-                        return (
-                            f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
-                        )
-
-                    start_str = format_time(start_time)
-                    end_str = format_time(end_time)
-
-                    # Write subtitle entry
-                    f.write(f"{index}\n")
-                    f.write(f"{start_str} --> {end_str}\n")
-                    f.write(f"{text}\n\n")
-
-            self.logger.info(f"Created SRT subtitle file: {srt_file_path}")
-            self.logger.info(f"Total subtitles: {len(self.subtitle_timestamps)}")
-
-            # Convert seconds to SRT time format (HH:MM:SS,mmm)
-            def format_time(seconds):
-                hours = int(seconds // 3600)
-                minutes = int((seconds % 3600) // 60)
-                secs = int(seconds % 60)
-                milliseconds = int((seconds % 1) * 1000)
-                return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
-
-            # Log first few subtitles for verification
-            for i in range(min(3, len(self.subtitle_timestamps))):
-                sub = self.subtitle_timestamps[i]
-                start_str = format_time(sub["start_time"])
-                end_str = format_time(sub["end_time"])
-                self.logger.info(
-                    f"Subtitle {i + 1}: {start_str} --> {end_str} | '{sub['text']}'"
-                )
-
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Failed to create SRT subtitle file: {e}")
-            return False
-
     def add_subtitles(self, clip, subtitle_text):
         """Legacy method: Add single subtitle to clip with Chinese font support"""
         if not subtitle_text:
@@ -2941,8 +2681,10 @@ class VideoGenerator:
             else:
                 # Generate new subtitles
                 self.logger.info("Generating new subtitles...")
-                self.voice_subtitles, self.display_subtitles = self.llm_manager.generate_subtitles(
-                    self.args, self.prompt_folder, self.subtitle_folder, self.logger
+                self.voice_subtitles, self.display_subtitles = (
+                    self.llm_manager.generate_subtitles(
+                        self.args, self.prompt_folder, self.subtitle_folder, self.logger
+                    )
                 )
                 # Use display subtitles for the main workflow (backward compatibility)
                 self.subtitles = self.display_subtitles
