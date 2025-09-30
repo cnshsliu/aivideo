@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from moviepy import (
     TextClip,
     CompositeVideoClip,
@@ -25,6 +26,9 @@ class TitleProcessor:
 
         try:
             title_duration = clip.duration
+
+            if args.title_timestamp:
+                title = title + "," + datetime.now().strftime("%H:%M:%S")
 
             # Parse title - split by comma for multi-line
             title_lines = title.split(",")

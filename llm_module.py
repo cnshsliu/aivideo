@@ -18,7 +18,7 @@ class LLMManager:
     """
     LLM Manager class - handles all LLM-related operations
     """
-    
+
     def __init__(self, config: Config):
         self.config = config
         self.logger = config.logger
@@ -27,7 +27,9 @@ class LLMManager:
         """Get model configuration for specified LLM provider"""
         return self.config.get_llm_model_config(provider)
 
-    def generate_subtitles(self, args, prompt_folder: Path, subtitle_folder: Path, logger):
+    def generate_subtitles(
+        self, args, prompt_folder: Path, subtitle_folder: Path, logger
+    ):
         """Generate subtitles using LLM"""
         logger.info("Generating subtitles using LLM...")
 
@@ -152,11 +154,17 @@ FORMAT:
 - Clean, readable text suitable for TTS and video display
 
 Examples of good subtitles:
-"NVIDIA 5090液冷一体机正通过AI技术改变我们的生活。"
-"超强AI计算能力为您带来卓越的性能提升和高效的深度学习体验。"
-"创新液冷散热系统保持工作环境安静无扰，温度控制精准稳定。"
-"RTX 5090显卡技术支持大型AI模型运行，处理复杂任务轻松高效。"
-"开箱即用集成管理采用软硬件一体化设计，即插即用便捷体验。"
+"NVIDIA 5090液冷一体机"
+"正通过AI技术改变我们的生活"
+"超强AI计算能力为您带来"
+"卓越的性能提升和高效的深度学习体验"
+"创新液冷散热系统保持工作环境"
+"安静无扰，温度控制精准稳定"
+"RTX 5090显卡技术支持"
+"大型AI模型运行，处理复杂任务轻松高效"
+"开箱即用"
+"集成管理采用软硬件一体化设计"
+"即插即用便捷体验"
 
 Remember: Use ONLY Chinese comma (，), period (。), question mark (？), and exclamation mark (！). NO other punctuation allowed.""",
                         },
@@ -195,7 +203,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             display_subtitles = []
             for subtitle in raw_subtitles:
                 # Remove ending punctuation (Chinese period, exclamation mark, question mark, comma)
-                if subtitle.endswith(('。', '！', '？', '，')):
+                if subtitle.endswith(("。", "！", "？", "，")):
                     subtitle = subtitle[:-1]
                 display_subtitles.append(subtitle)
 
@@ -215,7 +223,9 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
 
             if llm_config:
                 display_name = llm_config.get("display_name", "unknown")
-                print(f"Generated {len(display_subtitles)} subtitles using {display_name}")
+                print(
+                    f"Generated {len(display_subtitles)} subtitles using {display_name}"
+                )
             else:
                 print(f"Generated {len(display_subtitles)} subtitles using {provider}")
 
@@ -270,3 +280,4 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                 "Make sure litellm server is running: python ~/dev/litellm/litellm.py server"
             )
             sys.exit(1)
+

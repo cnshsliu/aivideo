@@ -87,9 +87,9 @@ class Config:
                 "display_name": "Grok Code Fast",
             },
             "glm": {
-                "model": "glm4-plus",
-                "env_key": "GLM_API_KEY",
-                "display_name": "GLM 4 Plus",
+                "model": "glm-4.5",
+                "env_key": "Z_API_KEY",
+                "display_name": "GLM 4.5",
             },
             "ollama": {
                 "model": "llama3.1",
@@ -126,6 +126,11 @@ def parse_args():
         "--open",
         action="store_true",
         help="open final video",
+    )
+    parser.add_argument(
+        "--title-timestamp",
+        action="store_true",
+        help="Add timestamp to title",
     )
     parser.add_argument("--title-length", type=float, help="Seconds to show title")
     parser.add_argument("--title-font", help="Font for title")
@@ -202,4 +207,3 @@ def parse_args():
         help="Background music volume level (0.0-1.0, default: 0.3)",
     )
     return parser.parse_args()
-

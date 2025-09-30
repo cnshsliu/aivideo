@@ -54,9 +54,6 @@ class AudioGenerator:
 
             vg.audio_file = audio_path
 
-            # Calculate subtitle timestamps based on audio duration and subtitle count
-            vg._calculate_subtitle_timestamps()
-
         except Exception as e:
             print(f"Damn, Volcengine TTS failed: {e}")
             print("Voice generation failed - exiting program")

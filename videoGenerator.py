@@ -62,9 +62,10 @@ class VideoGenerator:
         self.llm_manager = LLMManager(self.config)
         # Initialize subtitle processor
         self.title_processor = TitleProcessor(self.logger)
-        self.subtitle_processor = SubtitleProcessor(self.logger)
+        self.subtitle_processor = SubtitleProcessor(self, self.logger)
         self.background_music_processor = BackgroundMusicProcessor(self.logger, args)
         self.audioGenerator = AudioGenerator(self.logger)
+        self.subtitle_timestamps = []
 
         # Media files list
         self.media_files = []
@@ -77,95 +78,6 @@ class VideoGenerator:
         self.display_subtitles = []  # For video display (cleaned)
         self.display_to_voice_mapping = []  # Maps display subtitle index to voice subtitle index
         self.audio_file = None
-
-    def _log_subtitles(self, source="unknown"):
-        """Log generated subtitles with detailed information"""
-        if not self.subtitles:
-            self.logger.warning("No subtitles to log")
-            return
-
-        self.logger.info(f"=== GENERATED SUBTILES ({source}) ===")
-        self.logger.info(f"Total subtitles: {len(self.subtitles)}")
-
-        for i, subtitle in enumerate(self.subtitles, 1):
-            self.logger.info(
-                f"Subtitle {i}: '{subtitle}' (length: {len(subtitle)} chars)"
-            )
-
-        self.logger.info("=== END SUBTILES ===")
-
-        # Also save subtitles to a dedicated file
-        subtitle_file = (
-            self.project_folder
-            / "logs"
-            / f"subtitles_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        )
-        with open(subtitle_file, "w", encoding="utf-8") as f:
-            f.write(f"Generated Subtitles ({source})\n")
-            f.write(f"Project: {self.project_folder}\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Total: {len(self.subtitles)} subtitles\n")
-            f.write("=" * 50 + "\n\n")
-
-            for i, subtitle in enumerate(self.subtitles, 1):
-                f.write(f"{i}. {subtitle}\n")
-
-        self.logger.info(f"Subtitles saved to: {subtitle_file}")
-
-    # Subtitle processing wrapper methods
-    def _optimize_subtitles(self, raw_subtitles):
-        """Optimize subtitles for display while preserving timing relationships."""
-        # Set up subtitle processor with current state
-        self.subtitle_processor.voice_subtitles = self.voice_subtitles
-        self.subtitle_processor.display_subtitles = self.display_subtitles
-        self.subtitle_processor.display_to_voice_mapping = self.display_to_voice_mapping
-
-        # Call subtitle processor
-        result = self.subtitle_processor._optimize_subtitles(raw_subtitles)
-
-        # Update state from subtitle processor
-        self.voice_subtitles = self.subtitle_processor.voice_subtitles
-        self.display_subtitles = self.subtitle_processor.display_subtitles
-        self.display_to_voice_mapping = self.subtitle_processor.display_to_voice_mapping
-
-        return result
-
-    def _calculate_subtitle_timestamps(self):
-        """Calculate intelligent timestamps for display subtitles based on voice subtitles and audio duration"""
-        # Set up subtitle processor with current state
-        self.subtitle_processor.subtitle_folder = self.subtitle_folder
-        self.subtitle_processor.audio_file = self.audio_file
-        self.subtitle_processor.voice_subtitles = self.voice_subtitles
-        self.subtitle_processor.display_subtitles = self.display_subtitles
-        self.subtitle_processor.display_to_voice_mapping = self.display_to_voice_mapping
-
-        # Call subtitle processor
-        self.subtitle_processor._calculate_subtitle_timestamps()
-
-        # Update state from subtitle processor
-        self.subtitle_timestamps = self.subtitle_processor.subtitle_timestamps
-
-    def _create_fallback_timestamps(self):
-        """Create fallback timestamps with equal distribution based on display subtitles"""
-        # Set up subtitle processor with current state
-        self.subtitle_processor.subtitle_folder = self.subtitle_folder
-        self.subtitle_processor.audio_file = self.audio_file
-        self.subtitle_processor.display_subtitles = self.display_subtitles
-
-        # Call subtitle processor
-        self.subtitle_processor._create_fallback_timestamps()
-
-        # Update state from subtitle processor
-        self.subtitle_timestamps = self.subtitle_processor.subtitle_timestamps
-
-    def _create_srt_subtitle_file(self):
-        """Create SRT subtitle file from timestamps"""
-        # Set up subtitle processor with current state
-        self.subtitle_processor.subtitle_folder = self.subtitle_folder
-        self.subtitle_processor.subtitle_timestamps = self.subtitle_timestamps
-
-        # Call subtitle processor
-        self.subtitle_processor._create_srt_subtitle_file()
 
     def scan_media_files(self):
         """Scan media folder and identify special files"""
@@ -208,222 +120,6 @@ class VideoGenerator:
             print(f"Found start file: {self.start_file}")
         if self.closing_file:
             print(f"Found closing file: {self.closing_file}")
-
-    def load_existing_subtitles(self):
-        """Load existing subtitles from voice_subtitles.txt and display_subtitles.txt, or fallback to generated_subtitles.txt"""
-        # First try to load the dual text system files
-        voice_file = self.subtitle_folder / "voice_subtitles.txt"
-        display_file = self.subtitle_folder / "display_subtitles.txt"
-
-        if voice_file.exists() and display_file.exists():
-            try:
-                # Load voice subtitles
-                with open(voice_file, "r", encoding="utf-8") as f:
-                    voice_content = f.read().strip()
-                    if voice_content:
-                        self.voice_subtitles = [
-                            line.strip()
-                            for line in voice_content.split("\n")
-                            if line.strip()
-                        ]
-
-                # Load display subtitles
-                with open(display_file, "r", encoding="utf-8") as f:
-                    display_content = f.read().strip()
-                    if display_content:
-                        self.display_subtitles = [
-                            line.strip()
-                            for line in display_content.split("\n")
-                            if line.strip()
-                        ]
-
-                if self.voice_subtitles and self.display_subtitles:
-                    self.subtitles = (
-                        self.display_subtitles
-                    )  # Use display for main workflow
-                    # Create display-to-voice mapping for timestamp calculation
-                    self.display_to_voice_mapping = (
-                        self.subtitle_processor._create_display_voice_mapping(
-                            self.voice_subtitles, self.display_subtitles
-                        )
-                    )
-                    print(
-                        f"Loaded {len(self.voice_subtitles)} voice subtitles and {len(self.display_subtitles)} display subtitles"
-                    )
-                    return True
-            except Exception as e:
-                print(f"Error loading dual text subtitles: {e}")
-
-        # Fallback to old generated_subtitles.txt
-        subtitles_file = self.subtitle_folder / "generated_subtitles.txt"
-        if subtitles_file.exists():
-            try:
-                with open(subtitles_file, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                    if content:
-                        raw_subtitles = [
-                            line.strip() for line in content.split("\n") if line.strip()
-                        ]
-                        if raw_subtitles:
-                            # Create both voice and display versions
-                            self.voice_subtitles = raw_subtitles
-                            # Create display-optimized subtitles (without unnecessary punctuation)
-                            self.display_subtitles = self._optimize_subtitles(
-                                raw_subtitles
-                            )
-                            self.subtitles = self.display_subtitles
-
-                            # Save both versions for future use
-                            with open(voice_file, "w", encoding="utf-8") as f:
-                                f.write("\n".join(self.voice_subtitles))
-                            with open(display_file, "w", encoding="utf-8") as f:
-                                f.write("\n".join(self.display_subtitles))
-
-                            print(
-                                f"Loaded {len(self.voice_subtitles)} voice subtitles and created {len(self.display_subtitles)} display subtitles"
-                            )
-                            return True
-            except Exception as e:
-                print(f"Error loading existing subtitles: {e}")
-        return False
-
-    def load_text_file_subtitles(self, text_file_path):
-        """Load subtitles from specified text file and create voice/display versions"""
-        text_file = Path(text_file_path)
-        if not text_file.exists():
-            raise FileNotFoundError(f"Text file not found: {text_file}")
-
-        try:
-            with open(text_file, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if content:
-                    # Load original subtitles as voice subtitles (with punctuation)
-                    self.voice_subtitles = [
-                        line.strip() for line in content.split("\n") if line.strip()
-                    ]
-
-                    # Create display-optimized subtitles (without unnecessary punctuation)
-                    self.display_subtitles = self._optimize_subtitles(
-                        self.voice_subtitles
-                    )
-
-                    # Use display subtitles for main workflow
-                    self.subtitles = self.display_subtitles
-
-                    if self.voice_subtitles:
-                        print(
-                            f"Loaded {len(self.voice_subtitles)} voice subtitles and created {len(self.display_subtitles)} display subtitles from {text_file}"
-                        )
-                        self._log_subtitles(f"text file: {text_file.name}")
-
-                        # Save both versions
-                        voice_file = self.subtitle_folder / "voice_subtitles.txt"
-                        display_file = self.subtitle_folder / "display_subtitles.txt"
-
-                        with open(voice_file, "w", encoding="utf-8") as f:
-                            f.write("\n".join(self.voice_subtitles))
-
-                        with open(display_file, "w", encoding="utf-8") as f:
-                            f.write("\n".join(self.display_subtitles))
-
-                        return True
-        except Exception as e:
-            print(f"Damn, failed to read text file {text_file}: {e}")
-
-        return False
-
-    def load_static_subtitles(self):
-        """Load static subtitles from .txt files (excluding generated_subtitles.txt)"""
-        txt_files = list(self.subtitle_folder.glob("*.txt"))
-        # Skip generated_subtitles.txt and also skip voice/display files if they exist
-        txt_files = [
-            f
-            for f in txt_files
-            if f.name
-            not in [
-                "generated_subtitles.txt",
-                "voice_subtitles.txt",
-                "display_subtitles.txt",
-            ]
-        ]
-
-        if not txt_files:
-            return False
-
-        # Read all .txt files and combine their content
-        raw_subtitles = []
-        for txt_file in sorted(txt_files):
-            try:
-                with open(txt_file, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                    if content:
-                        # Split content by newlines for multiple subtitles
-                        lines = [
-                            line.strip() for line in content.split("\n") if line.strip()
-                        ]
-                        raw_subtitles.extend(lines)
-                        print(f"Loaded {len(lines)} subtitles from {txt_file.name}")
-            except Exception as e:
-                print(f"Damn, failed to read {txt_file}: {e}")
-                continue
-
-        if not raw_subtitles:
-            return False
-
-        # Store original subtitles for voice generation (with punctuation)
-        self.voice_subtitles = raw_subtitles
-
-        # Create display-optimized subtitles (without unnecessary punctuation)
-        self.display_subtitles = self._optimize_subtitles(raw_subtitles)
-
-        # Use display subtitles for the main workflow (backward compatibility)
-        self.subtitles = self.display_subtitles
-
-        print(
-            f"Loaded {len(self.voice_subtitles)} voice subtitles and created {len(self.display_subtitles)} display subtitles from static files"
-        )
-        self._log_subtitles("static files")
-
-        # Save both versions
-        voice_file = self.subtitle_folder / "voice_subtitles.txt"
-        display_file = self.subtitle_folder / "display_subtitles.txt"
-
-        with open(voice_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(self.voice_subtitles))
-
-        with open(display_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(self.display_subtitles))
-
-        return True
-
-    def get_llm_model_config(self, provider):
-        """Get model configuration for specified LLM provider"""
-        return self.config.get_llm_model_config(provider)
-
-    def generate_subtitles(self):
-        """Generate subtitles using LLM"""
-        self.logger.info("Generating subtitles using LLM...")
-
-        # Read prompt file
-        prompt_file = self.prompt_folder / "prompt.md"
-        if not prompt_file.exists():
-            raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
-
-        # Generate subtitles using LLMManager
-        self.voice_subtitles, self.display_subtitles = (
-            self.llm_manager.generate_subtitles(
-                self.args, self.prompt_folder, self.subtitle_folder, self.logger
-            )
-        )
-
-        # Optimize display subtitles
-        self.display_subtitles = self._optimize_subtitles(self.voice_subtitles)
-
-        # Use display subtitles for the main workflow (backward compatibility)
-        self.subtitles = self.display_subtitles
-        self._log_subtitles("LLM - Generated")
-
-        return True
 
     def process_media_clips(self):
         """Process media clips according to specifications"""
@@ -1134,7 +830,7 @@ class VideoGenerator:
                 "No timestamped subtitles available, using fallback method"
             )
             # Fallback to old method if timestamps not available
-            return self._add_subtitles_fallback(video_clip)
+            return video_clip
 
         try:
             self.logger.info(
@@ -1440,22 +1136,6 @@ class VideoGenerator:
             self.logger.error(f"Failed to add timestamped subtitles: {e}")
             return video_clip
 
-    def _add_subtitles_fallback(self, video_clip):
-        """Fallback method: distribute subtitles evenly across video clips"""
-        if not self.subtitles:
-            return video_clip
-
-        try:
-            self.logger.info("Using fallback subtitle distribution method")
-
-            # If we have processed clips, add subtitles to each clip
-            # This requires modifying the clip processing logic
-            return video_clip
-
-        except Exception as e:
-            self.logger.error(f"Fallback subtitle method failed: {e}")
-            return video_clip
-
     def apply_transition(self, clip1, clip2):
         """Apply random transition between clips"""
         transitions = [
@@ -1689,11 +1369,12 @@ class VideoGenerator:
         # Check if --text parameter is provided (highest priority)
         if self.args.text:
             self.logger.info(f"Using text file: {self.args.text}")
-            if self.load_text_file_subtitles(self.args.text):
+            if self.subtitle_processor.load_text_file_subtitles(self, self.args.text):
                 # Text file loaded successfully, now decide about voice generation
                 if self.args.gen_voice:
                     self.logger.info("Generating voice for text file subtitles...")
                     self.audioGenerator.generate_audio(self)
+                    self.subtitle_processor._calculate_subtitle_timestamps(self)
                 else:
                     # Check if existing audio file exists
                     audio_file = self.project_folder / "generated_audio.mp3"
@@ -1701,7 +1382,7 @@ class VideoGenerator:
                         self.audio_file = audio_file
                         self.logger.info("Using existing audio file")
                         # Calculate subtitle timestamps using existing audio
-                        self._calculate_subtitle_timestamps()
+                        self.subtitle_processor._calculate_subtitle_timestamps(self)
                     else:
                         raise FileNotFoundError(
                             "No audio file found. Use --gen-voice to generate audio."
@@ -1725,11 +1406,11 @@ class VideoGenerator:
             # Load subtitles if not generating them
             if not subtitle_needs_generation:
                 # Try to load existing generated subtitles first
-                if self.load_existing_subtitles():
+                if self.subtitle_processor.load_existing_subtitles(self):
                     self.logger.info("Using existing generated subtitles")
                 else:
                     # If no existing generated subtitles, try static files
-                    if self.load_static_subtitles():
+                    if self.subtitle_processor.load_static_subtitles():
                         self.logger.info("Using static subtitle files")
                     else:
                         raise FileNotFoundError(
@@ -1745,12 +1426,13 @@ class VideoGenerator:
                 )
                 # Use display subtitles for the main workflow (backward compatibility)
                 self.subtitles = self.display_subtitles
-                self._log_subtitles("LLM - Generated")
+                self.subtitle_processor._log_subtitles("LLM - Generated")
 
             # Generate audio if needed
             if voice_needs_generation:
                 self.logger.info("Generating new audio...")
                 self.audioGenerator.generate_audio(self)
+                self.subtitle_processor._calculate_subtitle_timestamps(self)
             else:
                 # Check if existing audio file exists
                 audio_file = self.project_folder / "generated_audio.mp3"
@@ -1759,7 +1441,7 @@ class VideoGenerator:
                     self.logger.info("Using existing audio file")
                     # Calculate subtitle timestamps using existing audio (for both existing and new subtitles)
                     if hasattr(self, "voice_subtitles") and self.voice_subtitles:
-                        self._calculate_subtitle_timestamps()
+                        self.subtitle_processor._calculate_subtitle_timestamps(self)
                 else:
                     raise FileNotFoundError(
                         "No audio file found. Use --gen-voice to generate audio."
