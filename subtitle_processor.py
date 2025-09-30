@@ -260,4 +260,3 @@ class SubtitleProcessor:
         secs = int(seconds % 60)
         milliseconds = int((seconds % 1) * 1000)
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
-
