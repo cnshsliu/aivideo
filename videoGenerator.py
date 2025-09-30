@@ -1,3 +1,4 @@
+import os
 import random
 import time
 import subprocess
@@ -2163,6 +2164,8 @@ class VideoGenerator:
 
         # Show video length after generation
         self._show_video_length(output_file)
+        if self.args.open:
+            os.system(f"open {output_file}")
 
     def _show_video_length(self, video_path):
         """Show the duration of the generated video file."""

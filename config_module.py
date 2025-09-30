@@ -26,6 +26,7 @@ ENHANCED_TITLES_AVAILABLE = (
     importlib.util.find_spec("enhanced_title_visibility") is not None
 )
 
+
 class Config:
     """
     Configuration class - handles all the damn config stuff!
@@ -99,6 +100,7 @@ class Config:
 
         return provider_models.get(provider)
 
+
 def parse_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="AI Video Generator")
@@ -119,6 +121,11 @@ def parse_args():
         "--keep-title",
         action="store_true",
         help="Keep title text across full video except closing clip",
+    )
+    parser.add_argument(
+        "--open",
+        action="store_true",
+        help="open final video",
     )
     parser.add_argument("--title-length", type=float, help="Seconds to show title")
     parser.add_argument("--title-font", help="Font for title")
@@ -195,3 +202,4 @@ def parse_args():
         help="Background music volume level (0.0-1.0, default: 0.3)",
     )
     return parser.parse_args()
+
