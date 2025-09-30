@@ -28,6 +28,7 @@ import io
 import asyncio
 
 # Import configuration module
+from title_processor import TitleProcessor
 from subtitle_processor import SubtitleProcessor
 from config_module import Config
 
@@ -67,6 +68,7 @@ class VideoGenerator:
         self.logger = self.config.logger
         self.llm_manager = LLMManager(self.config)
         # Initialize subtitle processor
+        self.title_processor = TitleProcessor(self.logger)
         self.subtitle_processor = SubtitleProcessor(self.logger)
 
         # Media files list
@@ -2554,9 +2556,13 @@ class VideoGenerator:
                 # If keep_title is enabled, add title to all clips with full duration
                 # Otherwise, only add title to first clip with limited duration
                 if getattr(self.args, "keep_title", False):
-                    clip = self.add_title(clip, use_full_duration=True)
+                    clip = self.title_processor.add_title(
+                        self.args, clip, self.args.title
+                    )
                 elif i == 0:
-                    clip = self.add_title(clip)
+                    clip = self.title_processor.add_title(
+                        self.args, clip, self.args.title
+                    )
 
             # Note: Subtitles are now added to the entire video later using timestamp-based synchronization
             # The old per-clip subtitle assignment has been removed
@@ -2682,7 +2688,9 @@ class VideoGenerator:
                 start_clip = start_clip.without_audio()
                 # Add title to start clip if we have a title
                 if self.args.title:
-                    start_clip = self.add_title(start_clip, use_full_duration=True)
+                    start_clip = self.title_processor.add_title(
+                        self.args, start_clip, self.args.title
+                    )
                 final_clips.append(start_clip)
                 self.logger.info(f"Added start clip: {start_clip.duration:.2f}s")
             else:
