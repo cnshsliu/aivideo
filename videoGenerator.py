@@ -30,6 +30,7 @@ import asyncio
 # Import configuration module
 from title_processor import TitleProcessor
 from subtitle_processor import SubtitleProcessor
+from background_music import BackgroundMusicProcessor
 from config_module import Config
 
 # Import LLM module
@@ -70,6 +71,7 @@ class VideoGenerator:
         # Initialize subtitle processor
         self.title_processor = TitleProcessor(self.logger)
         self.subtitle_processor = SubtitleProcessor(self.logger)
+        self.background_music_processor = BackgroundMusicProcessor(self.logger, args)
 
         # Media files list
         self.media_files = []
@@ -1414,296 +1416,6 @@ class VideoGenerator:
 
         return processed_clips
 
-    def _add_title_basic(self, clip, use_full_duration=False):
-        """Add title to clip with Chinese font support
-
-        Args:
-            clip: The video clip to add title to
-            use_full_duration: If True, use full clip duration regardless of title_length setting
-        """
-        if not self.args.title:
-            return clip
-
-        try:
-            # Determine title duration
-            if use_full_duration:
-                title_duration = clip.duration
-            else:
-                title_duration = getattr(self.args, "title_length", 3.0)
-                if title_duration is None:
-                    title_duration = 3.0
-                if title_duration > clip.duration:
-                    title_duration = clip.duration
-
-            self.logger.info(
-                f"Adding title with duration: {title_duration}s to clip of duration: {clip.duration}s"
-            )
-
-            # Parse title - split by comma for multi-line
-            title_lines = self.args.title.split(",")
-            font_size = getattr(self.args, "title_font_size", 60)
-            if font_size is None:
-                font_size = 60
-            title_font = (
-                getattr(self.args, "title_font", "Arial-Black") or "Arial-Black"
-            )
-
-            # Check if title contains Chinese and use appropriate font
-            full_title_text = self.args.title
-            if clip and contains_chinese(full_title_text):
-                self.logger.info(f"Chinese text detected in title: '{full_title_text}'")
-                title_font = get_chinese_compatible_font(title_font)
-                if title_font is None:
-                    self.logger.error("No compatible font found for Chinese title text")
-                    return clip
-
-            title_clips = []
-            title_position = getattr(self.args, "title_position", 20)
-            if title_position is None:
-                title_position = 20
-            y_offset = title_position / 100 * clip.h
-
-            for i, line in enumerate(title_lines):
-                # Adjust font size for subsequent lines
-                current_font_size = font_size if i == 0 else int(font_size * 0.9)
-
-                try:
-                    # Test if the font is valid by trying to create a small text clip first
-                    test_clip = TextClip(
-                        title_font,
-                        "Test",
-                        font_size=12,
-                        color="white",
-                        stroke_color="black",
-                        stroke_width=1,
-                        method="label",
-                    )
-                    test_clip.close()
-
-                    # Create the actual title clip
-                    title_clip = TextClip(
-                        title_font,
-                        line.strip(),
-                        font_size=current_font_size,
-                        color="yellow",
-                        stroke_color="black",
-                        stroke_width=4,
-                        method="label",
-                    )
-
-                    # Verify the clip was created successfully
-                    if title_clip is None:
-                        raise ValueError("TextClip returned None")
-
-                    # Position the title
-                    if clip and title_clip:
-                        title_x = clip.w / 2 - title_clip.w / 2
-                        title_y = y_offset + i * (current_font_size + 10)
-
-                        title_clip = title_clip.with_position((title_x, title_y))
-                        # Show title only for the specified duration
-                        title_clip = title_clip.with_duration(title_duration)
-                    if title_clip:
-                        title_clips.append(title_clip)
-                except Exception as text_error:
-                    print(
-                        f"Damn, title text clip creation failed for line '{line.strip()}': {text_error}"
-                    )
-                    # Try fallback font
-                    try:
-                        fallback_font = "Arial-Bold"
-                        self.logger.info(f"Trying fallback font: {fallback_font}")
-                        title_clip = TextClip(
-                            fallback_font,
-                            line.strip(),
-                            font_size=current_font_size,
-                            color="yellow",
-                            stroke_color="black",
-                            stroke_width=4,
-                            method="label",
-                        )
-
-                        if title_clip is None:
-                            raise ValueError("Fallback TextClip returned None")
-
-                        # Position the title
-                        if clip and title_clip:
-                            title_x = clip.w / 2 - title_clip.w / 2
-                            title_y = y_offset + i * (current_font_size + 10)
-
-                            title_clip = title_clip.with_position((title_x, title_y))
-                            title_clip = title_clip.with_duration(title_duration)
-                            title_clips.append(title_clip)
-                        self.logger.info(
-                            "Successfully created title with fallback font"
-                        )
-                    except Exception as fallback_error:
-                        print(f"Damn, fallback font also failed: {fallback_error}")
-                        continue
-
-            if not title_clips:
-                print("No title clips created, returning original clip")
-                return clip
-
-            # Filter out any None clips that might have been created
-            title_clips = [clip for clip in title_clips if clip is not None]
-            if not title_clips:
-                print("All title clips were None, returning original clip")
-                return clip
-
-            # If title duration is less than clip duration, we need to split the clip
-            if title_duration < clip.duration:
-                try:
-                    # Verify the clip is valid before subclip operations
-                    if clip is None:
-                        raise ValueError("Original clip is None")
-
-                    # Test if the clip can be read
-                    try:
-                        test_frame = clip.get_frame(0.0)
-                        if test_frame is None or not isinstance(test_frame, np.ndarray):
-                            raise ValueError("Cannot get frame from original clip")
-                    except Exception as frame_error:
-                        raise ValueError(
-                            f"Cannot read frames from original clip: {frame_error}"
-                        )
-
-                    # Create a version with title for the title duration
-                    clip_with_title = clip.subclipped(0, title_duration)
-                    if clip_with_title is None:
-                        raise ValueError("clip_with_title is None after subclip")
-
-                    # Test the subclipped clip
-                    try:
-                        test_frame = clip_with_title.get_frame(0.0)
-                        if test_frame is None or not isinstance(test_frame, np.ndarray):
-                            raise ValueError("Cannot get frame from clip_with_title")
-                    except Exception as frame_error:
-                        raise ValueError(
-                            f"Cannot read frames from clip_with_title: {frame_error}"
-                        )
-
-                    # Create composite with all title clips
-                    all_clips = [clip_with_title] + title_clips
-                    # Filter out any None clips
-                    all_clips = [c for c in all_clips if c is not None]
-
-                    # Verify all clips before creating composite
-                    for i, test_clip in enumerate(all_clips):
-                        if test_clip is None:
-                            raise ValueError(f"Clip {i} is None")
-                        try:
-                            test_frame = test_clip.get_frame(0.0)
-                            if test_frame is None or not isinstance(
-                                test_frame, np.ndarray
-                            ):
-                                raise ValueError(f"Cannot get frame from clip {i}")
-                        except Exception as frame_error:
-                            raise ValueError(
-                                f"Cannot read frames from clip {i}: {frame_error}"
-                            )
-
-                    titled_clip = CompositeVideoClip(all_clips)
-                    titled_clip = titled_clip.with_duration(title_duration)
-
-                    # Create the remaining part of the clip without title
-                    remaining_clip = clip.subclipped(title_duration)
-                    if remaining_clip is None:
-                        raise ValueError("remaining_clip is None after subclip")
-
-                    # Test the remaining clip
-                    try:
-                        test_frame = remaining_clip.get_frame(0.0)
-                        if test_frame is None or not isinstance(test_frame, np.ndarray):
-                            raise ValueError("Cannot get frame from remaining_clip")
-                    except Exception as frame_error:
-                        raise ValueError(
-                            f"Cannot read frames from remaining_clip: {frame_error}"
-                        )
-
-                    # Ensure the remaining clip maintains the original video content
-                    # Create a composite clip for the remaining part to avoid black screen
-                    remaining_composite = None
-                    if remaining_clip:
-                        remaining_composite = CompositeVideoClip([remaining_clip])
-                        remaining_composite = remaining_composite.with_duration(
-                            remaining_clip.duration
-                        )
-
-                    # Return both clips concatenated
-                    clips_to_concat = [titled_clip]
-                    if remaining_composite:
-                        clips_to_concat.append(remaining_composite)
-
-                    result = self._safe_concatenate_clips(
-                        clips_to_concat, method="compose"
-                    )
-                    remaining_duration = (
-                        remaining_composite.duration if remaining_composite else 0
-                    )
-                    titled_duration = titled_clip.duration if titled_clip else 0
-                    result_duration = result.duration if result else 0
-                    self.logger.info(
-                        f"Created titled clip: {titled_duration}s + remaining clip: {remaining_duration}s = {result_duration}s"
-                    )
-                    return result
-                except Exception as subclip_error:
-                    self.logger.error(f"Error during clip splitting: {subclip_error}")
-                    # Fallback: return original clip without title
-                    return clip
-            else:
-                # Title covers the entire clip
-                try:
-                    all_clips = [clip] + title_clips
-                    # Filter out any None clips
-                    all_clips = [c for c in all_clips if c is not None]
-
-                    result = CompositeVideoClip(all_clips)
-                    if clip:
-                        result = result.with_duration(clip.duration)
-                    if result:
-                        self.logger.info(
-                            f"Title covers entire clip: {result.duration}s"
-                        )
-                    return result
-                except Exception as composite_error:
-                    self.logger.error(
-                        f"Error during composite creation: {composite_error}"
-                    )
-                    # Fallback: return original clip without title
-                    return clip
-
-        except Exception as e:
-            print(f"Damn, title creation failed: {e}")
-            self.logger.error(f"Title creation failed: {e}")
-            return clip
-
-    def add_title(self, clip, use_full_duration=False):
-        """Add prominent title to clip with enhanced visibility"""
-        if not self.args.title:
-            return clip
-
-        try:
-            # TEMPORARY: Disable enhanced title system due to frame read issues
-            self.logger.info(
-                "Enhanced titles disabled temporarily due to frame read issues, using basic title system"
-            )
-            return self._add_title_basic(clip, use_full_duration)
-
-            # Original enhanced title system (disabled for now)
-            # if ENHANCED_TITLES_AVAILABLE:
-            #     self.logger.info(f"Using enhanced title system for: '{self.args.title}'")
-            #     return add_prominent_title_to_clip(clip, self.args.title, self.args)
-            #
-            # # Fallback to original method
-            # self.logger.info("Enhanced titles not available, using basic title system")
-            # return self._add_title_basic(clip, use_full_duration)
-
-        except Exception as e:
-            self.logger.error(f"Enhanced title failed, falling back to basic: {e}")
-            # Fallback to basic title
-            return self._add_title_basic(clip, use_full_duration)
-
     def add_timestamped_subtitles(self, video_clip):
         """Add all subtitles with their specific timestamps to the video"""
         if not hasattr(self, "subtitle_timestamps") or not self.subtitle_timestamps:
@@ -2157,175 +1869,10 @@ class VideoGenerator:
             self.logger.error(f"Error checking aspect ratio: {e}")
             return False
 
-    def _add_background_music(self, final_clip):
-        """Add background music with fade in/out effects to the final video"""
-        if not getattr(self.args, "mp3", None):
-            self.logger.info(
-                "No background music file specified, skipping background music"
-            )
-            return final_clip
-
-        bgm_file = Path(self.args.mp3)
-        if not bgm_file.exists():
-            self.logger.warning(f"Background music file not found: {bgm_file}")
-            return final_clip
-
-        try:
-            self.logger.info("🎵 Adding background music...")
-            self.logger.info(f"📁 Background music file: {bgm_file}")
-
-            # Get fade parameters
-            fade_in_duration = getattr(self.args, "bgm_fade_in", 3.0)
-            fade_out_duration = getattr(self.args, "bgm_fade_out", 3.0)
-            bgm_volume = getattr(self.args, "bgm_volume", 0.3)
-
-            # Validate parameters
-            fade_in_duration = max(0.0, fade_in_duration)
-            fade_out_duration = max(0.0, fade_out_duration)
-            bgm_volume = max(0.0, min(1.0, bgm_volume))
-
-            self.logger.info(f"⏱️  Fade-in duration: {fade_in_duration}s")
-            self.logger.info(f"⏱️  Fade-out duration: {fade_out_duration}s")
-            self.logger.info(f"🔊 Volume level: {bgm_volume:.2f}")
-
-            # Due to persistent FFmpeg subprocess issues with MoviePy audio mixing,
-            # we'll use a post-processing approach with FFmpeg directly
-            # This avoids the 'NoneType' object has no attribute 'stdout' error
-
-            # Store background music info for post-processing
-            self.background_music_info = {
-                "file": str(bgm_file),
-                "fade_in": fade_in_duration,
-                "fade_out": fade_out_duration,
-                "volume": bgm_volume,
-                "video_duration": final_clip.duration if final_clip else 0,
-            }
-
-            self.logger.info(
-                "🎵 Background music will be added using FFmpeg post-processing"
-            )
-            self.logger.info("🔄 This avoids MoviePy audio mixing issues")
-
-            return final_clip
-
-        except Exception as e:
-            self.logger.error(f"❌ Failed to prepare background music: {e}")
-            self.logger.error(f"Error type: {type(e)}")
-            import traceback
-
-            self.logger.error(f"Full traceback: {traceback.format_exc()}")
-            self.logger.info("🔄 Continuing without background music...")
-            return final_clip
-
-    def _apply_background_music_ffmpeg(self, input_video, output_video):
-        """Apply background music to video using FFmpeg directly"""
-        try:
-            # Check if FFmpeg is available
-            if not shutil.which("ffmpeg"):
-                self.logger.error("❌ FFmpeg not found in PATH")
-                return False
-
-            bgm_info = self.background_music_info
-            bgm_file = bgm_info["file"]
-            video_duration = bgm_info["video_duration"]
-            bgm_volume = bgm_info["volume"]
-            fade_in = bgm_info["fade_in"]
-            fade_out = bgm_info["fade_out"]
-
-            self.logger.info("🎵 Processing background music with FFmpeg...")
-            self.logger.info(f"📁 Input video: {input_video}")
-            self.logger.info(f"📁 Background music: {bgm_file}")
-            self.logger.info(f"⏱️  Video duration: {video_duration:.2f}s")
-            self.logger.info(f"🔊 Volume: {bgm_volume:.2f}x")
-            self.logger.info(f"🌅 Fade-in: {fade_in}s")
-            self.logger.info(f"🌇 Fade-out: {fade_out}s")
-
-            # Build FFmpeg command for audio mixing
-            # This approach uses FFmpeg's filter complex to mix audio properly
-            ffmpeg_cmd = [
-                "ffmpeg",
-                "-i",
-                str(input_video),  # Input video
-                "-i",
-                bgm_file,  # Background music
-                "-filter_complex",
-                self._build_ffmpeg_audio_filter(
-                    video_duration, bgm_volume, fade_in, fade_out
-                ),
-                "-map",
-                "0:v",  # Use video from first input
-                "-map",
-                "[a_out]",  # Use mixed audio
-                "-c:v",
-                "copy",  # Copy video stream without re-encoding
-                "-c:a",
-                "aac",  # Audio codec
-                "-b:a",
-                "192k",  # Audio bitrate
-                "-y",  # Overwrite output file
-                str(output_video),
-            ]
-
-            self.logger.info(f"🔧 Running FFmpeg command: {' '.join(ffmpeg_cmd)}")
-
-            # Run FFmpeg command
-            result = subprocess.run(
-                ffmpeg_cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,  # 5 minute timeout
-            )
-
-            if result.returncode == 0:
-                self.logger.info(
-                    "✅ FFmpeg background music processing completed successfully"
-                )
-                return True
-            else:
-                self.logger.error(
-                    f"❌ FFmpeg failed with return code: {result.returncode}"
-                )
-                self.logger.error(f"❌ FFmpeg stderr: {result.stderr}")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"❌ FFmpeg background music processing failed: {e}")
-            return False
-
-    def _build_ffmpeg_audio_filter(self, duration, volume, fade_in, fade_out):
-        """Build FFmpeg audio filter complex string for background music"""
-        # Build the background music filter with volume
-        bgm_filter = f"[1:a]volume={volume}[bgm_vol];"
-
-        # Add fade effects as separate filters - use afade for audio
-        fade_filters = ""
-        if fade_in > 0 or fade_out > 0:
-            fade_filters = "[bgm_vol]"
-            if fade_in > 0:
-                fade_filters += f"afade=t=in:st=0:d={fade_in}"
-            if fade_out > 0:
-                fade_out_start = max(0, duration - fade_out)
-                if fade_in > 0:
-                    fade_filters += f",afade=t=out:st={fade_out_start}:d={fade_out}"
-                else:
-                    fade_filters += f"afade=t=out:st={fade_out_start}:d={fade_out}"
-            fade_filters += "[bgm];"
-        else:
-            fade_filters = "[bgm_vol][bgm];"
-
-        # Mix the background music with original audio
-        # If the video has audio, mix them; otherwise, just use background music
-        mix_filter = (
-            "[0:a][bgm]amix=inputs=2:duration=shortest:dropout_transition=2[a_out]"
-        )
-
-        return bgm_filter + fade_filters + mix_filter
-
     def _regenerate_with_mobile_portrait_ratio(
         self, video_file, current_width, current_height
     ):
         """Regenerate video by cropping from center to 9:16 (width:height) aspect ratio"""
-        import subprocess
 
         try:
             # Create temporary file for the corrected video
@@ -2756,7 +2303,7 @@ class VideoGenerator:
         if getattr(self.args, "mp3", None):
             self.logger.info("Step 7.5: Adding background music...")
             print("🎵 Step 7.5: Adding background music...")
-            final_clip = self._add_background_music(final_clip)
+            self.background_music_processor._add_background_music(final_clip)
             self.logger.info(
                 f"Final video duration after adding background music: {final_clip.duration:.2f}s"
             )
@@ -2764,7 +2311,6 @@ class VideoGenerator:
         # Write output file
         output_file = self.project_folder / "output.mp4"
         self.logger.info(f"Writing video to: {output_file}")
-        print(f"Writing video to: {output_file}")
 
         # Progress tracking for video writing using file size monitoring
         import threading
@@ -2781,7 +2327,7 @@ class VideoGenerator:
                 if time.time() - start_time > 30:  # 30 second timeout
                     return
 
-            print("Video writing in progress...")
+            self.logger.info("Video writing in progress...")
 
             while True:
                 try:
@@ -2836,8 +2382,7 @@ class VideoGenerator:
         progress_thread.start()
 
         # Optimize video writing parameters
-        print("Starting video rendering... This may take a while.")
-        self.logger.info("Starting video rendering process")
+        self.logger.info("Starting video rendering process... This may take a while")
 
         # Enable MoviePy's built-in progress bar but also add our own monitoring
 
@@ -2878,39 +2423,12 @@ class VideoGenerator:
         # Wait for progress monitoring to finish
         progress_thread.join(timeout=5)
 
-        print("Video writing completed!")
+        self.logger.info("Video writing completed!")
 
         # Apply background music using FFmpeg if specified (post-processing approach)
-        if hasattr(self, "background_music_info") and self.background_music_info:
-            try:
-                self.logger.info(
-                    "🎵 Applying background music using FFmpeg post-processing..."
-                )
+        self.background_music_processor._apply_background_music_ffmpeg(output_file)
 
-                # Create temporary file for the video with background music
-                temp_output = output_file.with_suffix(".temp_with_music.mp4")
-
-                # Apply background music using FFmpeg
-                if self._apply_background_music_ffmpeg(output_file, temp_output):
-                    # Replace original file with the music-enhanced version
-                    shutil.move(str(temp_output), str(output_file))
-                    self.logger.info(
-                        "✅ Background music applied successfully using FFmpeg!"
-                    )
-                else:
-                    self.logger.warning(
-                        "⚠️ Failed to apply background music, keeping original video"
-                    )
-                    if temp_output.exists():
-                        temp_output.unlink()
-
-            except Exception as bgm_error:
-                self.logger.error(
-                    f"❌ Background music post-processing failed: {bgm_error}"
-                )
-                self.logger.info("🔄 Keeping original video without background music")
-
-        print(f"Video created successfully: {output_file}")
+        self.logger.info(f"Video created successfully: {output_file}")
         self.logger.info(f"Video generation completed successfully: {output_file}")
         self.logger.info(f"Final video duration: {final_clip.duration:.2f} seconds")
         self.logger.info(f"Main content duration: {main_content_duration:.2f} seconds")
