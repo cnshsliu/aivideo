@@ -1,0 +1,13 @@
+This is a test document for translation.
+
+It contains multiple paragraphs to test the DOCX processing functionality.
+
+The system should:
+1. Extract text from this DOCX file
+2. Translate the content using the LLM agent
+3. Generate a new DOCX file with the translated content
+4. Preserve the paragraph structure
+
+Let's see if this works properly!
+
+End of test document.

@@ -156,12 +156,6 @@ dmypy.json
 *.log
 logs/
 
-# Media and output directories
-media/
-output/
-generated_video*
-generated_audio*
-
 # Temporary files
 *.tmp
 *.temp
@@ -191,7 +185,6 @@ backup*
 
 # Demo and example files (except source code)
 demo/
-example*/media/
 example*/output/
 example*/logs/
 example*/generated_*
@@ -258,3 +251,9 @@ yarn-debug.log*
 yarn-error.log*
 example_project
 test
+frt/.svelte-kit
+frt/messages
+frt/project.inlang
+frt/e2e
+frt/drizzle
+frt/uploads

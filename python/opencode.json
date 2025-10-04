@@ -1,0 +1,24 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/qwen3-coder:480b-cloud",
+  "small_model": "ollama/qwen3:8b",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "qwen3-coder:480b-cloud": {
+          "name": "Qwen3CoderCloud",
+          "tools": true
+        },
+        "qwen3:8b": {
+          "name": "Qwen3-8b",
+          "tools": true
+        }
+      }
+    }
+  }
+}
