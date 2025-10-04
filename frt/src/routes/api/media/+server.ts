@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { readFileSync, readdirSync, statSync } from 'fs';
+import fs from 'fs/promises';
 import { verifySession } from "$lib/server/auth";
 import { join } from 'path';
 
@@ -87,5 +88,64 @@ export async function GET({ url, cookies }) {
   } catch (err) {
     console.error('❌ [MEDIA API] Error listing media:', err);
     throw error(500, 'Failed to list media files');
+  }
+}
+
+export async function DELETE({ request, cookies }) {
+  try {
+    console.log("🗑️ [MEDIA API] DELETE request received");
+
+    const session = await verifySession(cookies);
+    if (!session) {
+      console.log('❌ [MEDIA API] No session found for delete operation');
+      throw error(401, 'Authentication required');
+    }
+
+    const { level, files } = await request.json();
+    console.log("📋 [MEDIA API] Delete details:", { level, files });
+
+    if (!level || !['public', 'user'].includes(level)) {
+      throw error(400, 'Invalid level. Must be "public" or "user"');
+    }
+
+    if (!Array.isArray(files) || files.length === 0) {
+      throw error(400, 'Files array is required and cannot be empty');
+    }
+
+    let mediaPath = join(VAULT_PATH, 'public', 'media');
+    if (level === 'user') {
+      mediaPath = join(VAULT_PATH, session.username, 'media');
+    }
+
+    console.log('📂 [MEDIA API] Delete path:', mediaPath);
+
+    const deletedFiles = [];
+    const failedFiles = [];
+
+    for (const fileName of files) {
+      try {
+        const filePath = join(mediaPath, fileName);
+        await fs.unlink(filePath);
+        deletedFiles.push(fileName);
+        console.log('✅ [MEDIA API] Deleted file:', fileName);
+      } catch (err) {
+        console.error(`❌ [MEDIA API] Failed to delete ${fileName}:`, err);
+        failedFiles.push(fileName);
+      }
+    }
+
+    console.log('🎉 [MEDIA API] Delete operation completed');
+    return json({
+      success: true,
+      deleted: deletedFiles,
+      failed: failedFiles
+    });
+
+  } catch (err) {
+    console.error('❌ [MEDIA API] Error deleting media:', err);
+    if (err instanceof Error && 'status' in err) {
+      throw err;
+    }
+    throw error(500, 'Failed to delete media files');
   }
 }

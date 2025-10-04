@@ -49,7 +49,6 @@
   let projectMaterials = $state<Material[]>([]);
   let loadingPublic = $state(false);
   let loadingUser = $state(false);
-  let loadingProject = $state(false);
   let hasLoaded = $state(false);
 
   let addedPublicFiles = $derived.by(
@@ -115,7 +114,6 @@
   async function loadProjectMaterials() {
     if (!selectedProject) return;
 
-    loadingProject = true;
     try {
       const response = await fetch(
         `/api/projects/${selectedProject.id}/materials`,
@@ -129,8 +127,6 @@
     } catch (err) {
       console.error("Error loading project materials:", err);
       projectMaterials = [];
-    } finally {
-      loadingProject = false;
     }
   }
 
@@ -298,17 +294,6 @@
           >
             User Media
           </button>
-          {#if selectedProject}
-            <button
-              class="flex-1 rounded-md px-4 py-2 transition-all duration-200"
-              class:bg-white={materialsTab === "project"}
-              class:text-gray-900={materialsTab === "project"}
-              class:text-gray-600={materialsTab !== "project"}
-              onclick={() => (materialsTab = "project")}
-            >
-              Project Media
-            </button>
-          {/if}
         </div>
       </div>
 
@@ -631,68 +616,6 @@
                   <p class="text-xs text-gray-500">
                     {formatFileSize(file.size)}
                   </p>
-                </div>
-              </div>
-            {/each}
-          {/if}
-        {:else if materialsTab === "project"}
-          {#if loadingProject}
-            <div class="col-span-full flex items-center justify-center py-8">
-              <div class="flex items-center space-x-2">
-                <div
-                  class="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
-                ></div>
-                <span>Loading project materials...</span>
-              </div>
-            </div>
-          {:else if projectMaterials.length === 0}
-            <div class="col-span-full text-center py-8 text-gray-500">
-              No materials added to this project yet
-            </div>
-          {:else}
-            {#each projectMaterials as material (material.id)}
-              <div
-                class="aspect-square rounded-lg border border-blue-200 bg-blue-50 transition-all hover:shadow-md relative group"
-              >
-                <div
-                  class="aspect-square flex items-center justify-center bg-gray-100 rounded-lg"
-                >
-                  <span class="text-4xl">{getMediaIcon(material.fileType)}</span
-                  >
-                </div>
-
-                <!-- Remove button -->
-                <div class="absolute top-2 right-2">
-                  <button
-                    class="bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onclick={() => removeMaterialFromProject(material.id)}
-                    title="Remove from project"
-                    aria-label="Remove from project"
-                  >
-                    <svg
-                      class="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M6 18L18 6M6 6l12 12"
-                      ></path>
-                    </svg>
-                  </button>
-                </div>
-
-                <div class="p-2">
-                  <p
-                    class="truncate text-xs font-medium text-gray-900"
-                    title={material.fileName}
-                  >
-                    {material.fileName}
-                  </p>
-                  <p class="text-xs text-gray-500">{material.fileType}</p>
                 </div>
               </div>
             {/each}

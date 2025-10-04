@@ -14,27 +14,40 @@
     url: string;
   }
 
-  export let selectedFile: File | null;
-  export let uploadLevel: string;
-  export let selectedProject: Project | null;
-  export let isUploading: boolean;
-  export let onMediaSelect: (file: File) => void;
-  export let onUpload: () => void;
-  export let onPreviewMedia: (media: {
-    type: "image" | "video";
-    url: string;
-    name: string;
-    poster?: string;
-  }) => void;
-  export let onMediaSelectionChange: (selected: MediaFile[]) => void;
-  export let onMediaSelectionDone: (selected: MediaFile[]) => void;
+  let {
+    selectedFile,
+    uploadLevel,
+    selectedProject,
+    isUploading,
+    onMediaSelect,
+    onUpload,
+    onPreviewMedia,
+    onMediaSelectionChange,
+    onMediaSelectionDone,
+  } = $props<{
+    selectedFile: File | null;
+    uploadLevel: string;
+    selectedProject: Project | null;
+    isUploading: boolean;
+    onMediaSelect: (file: File) => void;
+    onUpload: () => void;
+    onPreviewMedia: (media: {
+      type: "image" | "video";
+      url: string;
+      name: string;
+      poster?: string;
+    }) => void;
+    onMediaSelectionChange: (selected: MediaFile[]) => void;
+    onMediaSelectionDone: (selected: MediaFile[]) => void;
+  }>();
 
-  let publicMediaFiles: MediaFile[] = [];
-  let userMediaFiles: MediaFile[] = [];
-  let loadingPublicMedia = false;
-  let loadingUserMedia = false;
-  let isSelecting = false;
-  let selectedMedia: MediaFile[] = [];
+  let publicMediaFiles = $state<MediaFile[]>([]);
+  let userMediaFiles = $state<MediaFile[]>([]);
+  let loadingPublicMedia = $state(false);
+  let loadingUserMedia = $state(false);
+  let isSelecting = $state(false);
+  let selectedMedia = $state<MediaFile[]>([]);
+  let isDeleting = $state(false);
 
   async function loadPublicMediaFiles() {
     loadingPublicMedia = true;
@@ -125,6 +138,52 @@
     onMediaSelectionChange(selectedMedia);
   }
 
+  async function deleteSelectedMedia() {
+    if (selectedMedia.length === 0) return;
+
+    // Filter to only public media files for deletion
+    const publicFiles = selectedMedia.filter(file =>
+      publicMediaFiles.some(publicFile => publicFile.name === file.name)
+    );
+
+    if (publicFiles.length === 0) {
+      alert("Only public media files can be deleted from this interface.");
+      return;
+    }
+
+    isDeleting = true;
+    try {
+      console.log("🗑️ [CLIENT] Deleting media files:", publicFiles.map(f => f.name));
+      const response = await fetch("/api/media", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          level: "public",
+          files: publicFiles.map(f => f.name),
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("🗑️ [CLIENT] Delete result:", result);
+        // Reload public media files
+        await loadPublicMediaFiles();
+        // Clear selection
+        selectedMedia = [];
+      } else {
+        console.error("🗑️ [CLIENT] Failed to delete media:", await response.text());
+        alert("Failed to delete some media files. Please try again.");
+      }
+    } catch (err) {
+      console.error("🗑️ [CLIENT] Error deleting media:", err);
+      alert("An error occurred while deleting media files.");
+    } finally {
+      isDeleting = false;
+    }
+  }
+
   onMount(() => {
     loadPublicMediaFiles();
     loadUserMediaFiles();
@@ -147,7 +206,7 @@
         accept="image/*,video/*"
         onchange={(e) => {
           const target = e.target as HTMLInputElement;
-          const file = target.files?.[0] || null;
+          const file: File | null = target.files?.[0] || null;
           if (file) onMediaSelect(file);
         }}
         class="hidden"
@@ -251,6 +310,19 @@
         <div class="mb-4 flex items-center justify-between">
           <h3 class="text-lg font-medium text-gray-900">Public Media</h3>
           <div class="flex items-center space-x-2">
+            {#if selectedMedia.length > 0}
+              <button
+                onclick={deleteSelectedMedia}
+                disabled={isDeleting}
+                class="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {#if isDeleting}
+                  Deleting...
+                {:else}
+                  Delete
+                {/if}
+              </button>
+            {/if}
             <button
               onclick={() => {
                 isSelecting = !isSelecting;
