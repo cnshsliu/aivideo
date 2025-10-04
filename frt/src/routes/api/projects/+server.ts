@@ -14,11 +14,17 @@ import { eq, desc } from "drizzle-orm";
 export async function GET({ cookies }) {
   try {
     console.log("📋 [PROJECTS API] GET request for user projects");
-    console.log("🍪 [PROJECTS API] Cookies:", cookies.getAll().map(c => c.name));
+    console.log(
+      "🍪 [PROJECTS API] Cookies:",
+      cookies.getAll().map((c) => c.name),
+    );
 
     // Verify user session
     const session = await verifySession(cookies);
-    console.log("🔐 [PROJECTS API] Session verification result:", session ? "VALID" : "INVALID");
+    console.log(
+      "🔐 [PROJECTS API] Session verification result:",
+      session ? "VALID" : "INVALID",
+    );
 
     if (!session) {
       console.log("❌ [PROJECTS API] Unauthorized access attempt");

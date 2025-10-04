@@ -21,7 +21,7 @@ export async function POST({ request, cookies }: RequestEvent) {
       level,
       fileName: file?.name,
       fileSize: file?.size,
-      projectId: projectId || "none"
+      projectId: projectId || "none",
     });
 
     // Validate inputs
@@ -30,7 +30,9 @@ export async function POST({ request, cookies }: RequestEvent) {
     }
 
     if (!level || !["public", "user", "project"].includes(level)) {
-      return error(400, { message: "Invalid upload level. Must be 'public', 'user', or 'project'" });
+      return error(400, {
+        message: "Invalid upload level. Must be 'public', 'user', or 'project'",
+      });
     }
 
     // Get vault path
@@ -48,7 +50,9 @@ export async function POST({ request, cookies }: RequestEvent) {
       session = await verifySession(cookies);
       if (!session) {
         console.log("❌ [MEDIA UPLOAD] Unauthorized upload attempt");
-        return error(401, { message: "Authentication required for user/project uploads" });
+        return error(401, {
+          message: "Authentication required for user/project uploads",
+        });
       }
 
       if (level === "user") {
@@ -56,14 +60,18 @@ export async function POST({ request, cookies }: RequestEvent) {
         console.log("👤 [MEDIA UPLOAD] User upload to:", uploadPath);
       } else if (level === "project") {
         if (!projectId) {
-          return error(400, { message: "Project ID required for project-level uploads" });
+          return error(400, {
+            message: "Project ID required for project-level uploads",
+          });
         }
 
         // Verify project belongs to user
         const projectData = await db
           .select()
           .from(project)
-          .where(and(eq(project.id, projectId), eq(project.userId, session.userId)))
+          .where(
+            and(eq(project.id, projectId), eq(project.userId, session.userId)),
+          )
           .limit(1);
 
         if (projectData.length === 0) {
@@ -72,16 +80,25 @@ export async function POST({ request, cookies }: RequestEvent) {
 
         // Upload to user's media folder (not project folder)
         uploadPath = path.join(vaultPath, session.username, "media");
-        console.log("📁 [MEDIA UPLOAD] Project upload to user media folder:", uploadPath);
+        console.log(
+          "📁 [MEDIA UPLOAD] Project upload to user media folder:",
+          uploadPath,
+        );
       }
     }
 
     // Create upload directory if it does not exist
     try {
       await fs.mkdir(uploadPath, { recursive: true });
-      console.log("📁 [MEDIA UPLOAD] Upload directory created/verified:", uploadPath);
+      console.log(
+        "📁 [MEDIA UPLOAD] Upload directory created/verified:",
+        uploadPath,
+      );
     } catch (dirErr) {
-      console.error("❌ [MEDIA UPLOAD] Failed to create upload directory:", dirErr);
+      console.error(
+        "❌ [MEDIA UPLOAD] Failed to create upload directory:",
+        dirErr,
+      );
       return error(500, { message: "Failed to create upload directory" });
     }
 
@@ -118,7 +135,9 @@ export async function POST({ request, cookies }: RequestEvent) {
         }
 
         // Create material relationship
-        const relativePath = path.relative(vaultPath, filePath).replace(/\\/g, '/');
+        const relativePath = path
+          .relative(vaultPath, filePath)
+          .replace(/\\/g, "/");
         await db.insert(material).values({
           id: nanoid(),
           projectId,
@@ -127,15 +146,21 @@ export async function POST({ request, cookies }: RequestEvent) {
           fileType,
         });
 
-        console.log("✅ [MEDIA UPLOAD] Material relationship created for project:", projectId);
+        console.log(
+          "✅ [MEDIA UPLOAD] Material relationship created for project:",
+          projectId,
+        );
       } catch (materialErr) {
-        console.error("❌ [MEDIA UPLOAD] Failed to create material relationship:", materialErr);
+        console.error(
+          "❌ [MEDIA UPLOAD] Failed to create material relationship:",
+          materialErr,
+        );
         // Don't fail the upload if material creation fails, but log it
       }
     }
 
     // Create relative path for client access
-    const relativePath = path.relative(vaultPath, filePath).replace(/\\/g, '/');
+    const relativePath = path.relative(vaultPath, filePath).replace(/\\/g, "/");
 
     const result = {
       success: true,
@@ -149,12 +174,11 @@ export async function POST({ request, cookies }: RequestEvent) {
         size: file.size,
         type: file.type,
         uploadedAt: new Date().toISOString(),
-      }
+      },
     };
 
     console.log("🎉 [MEDIA UPLOAD] Upload completed successfully");
     return json(result, { status: 201 });
-
   } catch (err) {
     console.error("❌ [MEDIA UPLOAD] Unexpected error:", err);
     return error(500, { message: "Internal server error" });

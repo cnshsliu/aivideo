@@ -73,7 +73,7 @@ export async function POST({ params, request, cookies }: RequestEvent) {
 
   if (!relativePath || !fileName || !fileType) {
     return error(400, {
-      message: "Missing required fields: relativePath, fileName, fileType"
+      message: "Missing required fields: relativePath, fileName, fileType",
     });
   }
 
@@ -92,7 +92,7 @@ export async function POST({ params, request, cookies }: RequestEvent) {
   const pathParts = relativePath.split("/");
   if (pathParts[0] !== "public" && pathParts[0] !== session.username) {
     return error(403, {
-      message: "Cannot add materials from other users' folders"
+      message: "Cannot add materials from other users' folders",
     });
   }
 
@@ -100,10 +100,12 @@ export async function POST({ params, request, cookies }: RequestEvent) {
   const existingMaterial = await db
     .select()
     .from(material)
-    .where(and(
-      eq(material.projectId, projectId),
-      eq(material.relativePath, relativePath)
-    ))
+    .where(
+      and(
+        eq(material.projectId, projectId),
+        eq(material.relativePath, relativePath),
+      ),
+    )
     .limit(1);
 
   if (existingMaterial.length > 0) {
@@ -146,17 +148,18 @@ export async function DELETE({ params, cookies, url }: RequestEvent) {
     // Get material ID from query parameter
     const materialId = url.searchParams.get("materialId");
     if (!materialId) {
-      return error(400, { message: "Material ID is required as query parameter" });
+      return error(400, {
+        message: "Material ID is required as query parameter",
+      });
     }
 
     // Check if material exists in project
     const existingMaterial = await db
       .select()
       .from(material)
-      .where(and(
-        eq(material.id, materialId),
-        eq(material.projectId, projectId)
-      ))
+      .where(
+        and(eq(material.id, materialId), eq(material.projectId, projectId)),
+      )
       .limit(1);
 
     if (existingMaterial.length === 0) {
@@ -166,10 +169,9 @@ export async function DELETE({ params, cookies, url }: RequestEvent) {
     // Delete material relationship
     await db
       .delete(material)
-      .where(and(
-        eq(material.id, materialId),
-        eq(material.projectId, projectId)
-      ));
+      .where(
+        and(eq(material.id, materialId), eq(material.projectId, projectId)),
+      );
 
     return json({ success: true });
   } catch (err) {
@@ -177,4 +179,3 @@ export async function DELETE({ params, cookies, url }: RequestEvent) {
     return error(500, { message: "Internal server error" });
   }
 }
-

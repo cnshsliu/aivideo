@@ -36,10 +36,7 @@ export async function POST({ request, cookies }) {
 
   // Check if user exists
   const existingUser = await getUserByUsername(username);
-  console.log(
-    "🔍 [AUTH API] User exists check:",
-    existingUser ? "YES" : "NO",
-  );
+  console.log("🔍 [AUTH API] User exists check:", existingUser ? "YES" : "NO");
 
   if (existingUser) {
     console.log("🔓 [AUTH API] Processing login for existing user");

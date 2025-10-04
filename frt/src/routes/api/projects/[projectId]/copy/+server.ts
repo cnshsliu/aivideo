@@ -83,7 +83,9 @@ export async function POST({ params, cookies }) {
         .returning();
 
       if (!newProject || newProject.length === 0) {
-        console.error("❌ [PROJECT COPY API] Failed to create project in database");
+        console.error(
+          "❌ [PROJECT COPY API] Failed to create project in database",
+        );
         return error(500, { message: "Failed to create project in database" });
       }
 
@@ -100,10 +102,7 @@ export async function POST({ params, cookies }) {
   }
 }
 
-async function copyDirectoryRecursive(
-  source: string,
-  destination: string,
-) {
+async function copyDirectoryRecursive(source: string, destination: string) {
   const entries = await fs.readdir(source, { withFileTypes: true });
 
   await fs.mkdir(destination, { recursive: true });
