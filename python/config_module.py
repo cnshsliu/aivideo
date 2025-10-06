@@ -132,7 +132,6 @@ def parse_args():
         action="store_true",
         help="Add timestamp to title",
     )
-    parser.add_argument("--title-length", type=float, help="Seconds to show title")
     parser.add_argument("--title-font", help="Font for title")
     parser.add_argument(
         "--title-font-size", type=int, default=72, help="Title font size (default: 72)"
@@ -155,12 +154,6 @@ def parse_args():
         type=float,
         default=80,
         help="Subtitle position (percentage of screen height)",
-    )
-    parser.add_argument(
-        "--clip-silent",
-        action="store_true",
-        default=True,
-        help="Make each clip silent (default: True)",
     )
     parser.add_argument(
         "--gen-subtitle",

@@ -10,7 +10,6 @@ materials
 --folder: the project folder --sort: media material pickup order
 --keep-clip-length: whether keep length of each clip, default is false.
 --length: result video length in seconds --clip-num: number of clips. --title:
-the title text at the beginning --title-length: the seconds to show title
 --title-font: the font for title --title-position: the position of title, this
 is a number indicates how many percentage the title should be placed on screen's
 height --subtle-font: the font for subtle --subtle-position: the position of

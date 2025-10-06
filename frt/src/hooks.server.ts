@@ -2,7 +2,6 @@ import { sequence } from "@sveltejs/kit/hooks";
 import * as auth from "$lib/server/auth";
 import type { Handle } from "@sveltejs/kit";
 import { paraglideMiddleware } from "$lib/paraglide/server";
-import "$lib/server/continuous-batch-processor"; // Initialize continuous batch processor
 
 const handleParaglide: Handle = ({ event, resolve }) =>
   paraglideMiddleware(event.request, ({ request, locale }) => {

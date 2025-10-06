@@ -73,7 +73,16 @@ export async function POST({ request, cookies }) {
     console.log("📋 [PROJECTS API] Project data:", data);
 
     // Validate required fields
-    const { name, title } = data;
+    const {
+      name,
+      title,
+      video_title,
+      keepTitle,
+      addTimestampToTitle,
+      titleFont,
+      titleFontSize,
+      titlePosition
+    } = data;
 
     if (!name || !title) {
       console.log("❌ [PROJECTS API] Missing required fields");
@@ -92,9 +101,15 @@ export async function POST({ request, cookies }) {
         id: projectId,
         name: name,
         title: title,
+        video_title: video_title || "",
         userId,
         prompt: null,
         staticSubtitle: null,
+        keepTitle: keepTitle !== undefined ? keepTitle : true,
+        addTimestampToTitle: addTimestampToTitle !== undefined ? addTimestampToTitle : false,
+        titleFont: titleFont || "Arial",
+        titleFontSize: titleFontSize || 24,
+        titlePosition: titlePosition || 50,
       })
       .returning();
 

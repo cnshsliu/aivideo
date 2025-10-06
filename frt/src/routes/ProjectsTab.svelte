@@ -3,6 +3,7 @@
     id: string;
     name: string;
     title: string;
+    video_title: string;
     createdAt: string;
     updatedAt: string;
     prompt?: string;

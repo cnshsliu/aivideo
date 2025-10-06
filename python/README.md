@@ -43,7 +43,6 @@ python main.py --folder /path/to/project [options]
 - `--length`: Target video length in seconds (will be automatically expanded if generated audio is longer)
 - `--clip-num`: Number of clips to use
 - `--title`: Title text for the beginning
-- `--title-length`: Duration to show title (seconds)
 - `--title-font`: Font for title
 - `--title-position`: Title position (percentage of screen height, default: 20)
 - `--subtitle-font`: Font for subtitles

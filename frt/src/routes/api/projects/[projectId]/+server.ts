@@ -55,7 +55,31 @@ export async function PUT({ params, request, cookies }) {
     }
 
     const { projectId } = params;
-    const { title, name, prompt, staticSubtitle } = await request.json();
+    const {
+      title,
+      video_title,
+      name,
+      prompt,
+      staticSubtitle,
+      keepTitle,
+      addTimestampToTitle,
+      titleFont,
+      titleFontSize,
+      titlePosition,
+      sortOrder,
+      keepClipLength,
+      clipNum,
+      subtitleFont,
+      subtitleFontSize,
+      subtitlePosition,
+      genSubtitle,
+      genVoice,
+      llmProvider,
+      bgmFile,
+      bgmFadeIn,
+      bgmFadeOut,
+      bgmVolume
+    } = await request.json();
 
     if (!title || !name) {
       return error(400, { message: "Title and name are required" });
@@ -105,9 +129,50 @@ export async function PUT({ params, request, cookies }) {
     // Update project
     console.log("prompt=", prompt);
     console.log("staticSubtitle=", staticSubtitle);
+    console.log("video_title=", video_title);
+    console.log("keepTitle=", keepTitle);
+    console.log("addTimestampToTitle=", addTimestampToTitle);
+    console.log("titleFont=", titleFont);
+    console.log("titleFontSize=", titleFontSize);
+    console.log("titlePosition=", titlePosition);
+    console.log("sortOrder=", sortOrder);
+    console.log("keepClipLength=", keepClipLength);
+    console.log("clipNum=", clipNum);
+    console.log("subtitleFont=", subtitleFont);
+    console.log("subtitleFontSize=", subtitleFontSize);
+    console.log("subtitlePosition=", subtitlePosition);
+    console.log("genSubtitle=", genSubtitle);
+    console.log("genVoice=", genVoice);
+    console.log("llmProvider=", llmProvider);
+
     await db
       .update(project)
-      .set({ title, name, prompt, staticSubtitle, updatedAt: new Date() })
+      .set({
+        title,
+        video_title,
+        name,
+        prompt,
+        staticSubtitle,
+        keepTitle,
+        addTimestampToTitle,
+        titleFont,
+        titleFontSize,
+        titlePosition,
+        sortOrder,
+        keepClipLength,
+        clipNum,
+        subtitleFont,
+        subtitleFontSize,
+        subtitlePosition,
+        genSubtitle,
+        genVoice,
+        llmProvider,
+        bgmFile,
+        bgmFadeIn,
+        bgmFadeOut,
+        bgmVolume,
+        updatedAt: new Date()
+      })
       .where(
         and(eq(project.id, projectId), eq(project.userId, session.userId)),
       );

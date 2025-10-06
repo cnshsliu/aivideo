@@ -8,7 +8,6 @@
   import ProjectDetailsTab from "./ProjectDetailsTab.svelte";
   import CreateProjectModal from "./CreateProjectModal.svelte";
   import MaterialsModal from "./MaterialsModal.svelte";
-  import ConfigurationModal from "./ConfigurationModal.svelte";
   import AuthModal from "./AuthModal.svelte";
 
   interface User {
@@ -20,18 +19,11 @@
     id: string;
     name: string;
     title: string;
+    video_title: string;
     createdAt: string;
     updatedAt: string;
     prompt?: string;
     staticSubtitle?: string;
-  }
-
-  interface MediaFile {
-    name: string;
-    type: string;
-    size: number;
-    modified: string;
-    url: string;
   }
 
   let user = $state<User | null>(null);
@@ -59,6 +51,7 @@
   let selectedFile = $state<File | null>(null);
   let uploadLevel = $state("public"); // 'public', 'user', 'project'
   let isUploading = $state(false);
+  let mediaTabRef = $state<any>(null);
 
   // Materials management
   let showMaterialsModal = $state(false);
@@ -75,35 +68,6 @@
   let generatingVideo = $state(false);
   let generationLogs = $state("");
   let showLogs = $state(false);
-
-  // Configuration
-  let showConfigModal = $state(false);
-  let videoConfig = $state({
-    sort: "alphnum",
-    keepClipLength: false,
-    length: null,
-    clipNum: null,
-    title: "",
-    keepTitle: false,
-    open: false,
-    titleTimestamp: false,
-    titleLength: null,
-    titleFont: "",
-    titleFontSize: 72,
-    titlePosition: 20,
-    subtitleFont: "",
-    subtitleFontSize: 48,
-    subtitlePosition: 80,
-    clipSilent: true,
-    genSubtitle: false,
-    genVoice: false,
-    llmProvider: "qwen",
-    text: "",
-    mp3: "",
-    bgmFadeIn: 3.0,
-    bgmFadeOut: 3.0,
-    bgmVolume: 0.3,
-  });
 
   onMount(async () => {
     await checkCurrentUser();
@@ -354,6 +318,11 @@
       });
 
       if (response.ok) {
+        // Dispatch a custom event to notify MediaTab of successful upload
+        window.dispatchEvent(new CustomEvent("mediaUploadComplete", {
+          detail: { level: uploadLevel }
+        }));
+        
         await loadUserProjects(); // Refresh if needed
         success = "Media uploaded successfully!";
         setTimeout(() => (success = ""), 3000);
@@ -446,13 +415,16 @@
       />
     {:else if activeTab === "media"}
       <MediaTab
+        bind:this={mediaTabRef}
         {selectedFile}
         bind:uploadLevel
         {selectedProject}
         {isUploading}
-        onMediaSelect={(file) => (selectedFile = file)}
+        onMediaSelect={(file: File) => (selectedFile = file)}
         onUpload={uploadMedia}
-        onPreviewMedia={(media) => (previewMedia = media)}
+        onPreviewMedia={(media: { type: "image" | "video"; url: string; name: string; poster?: string }) => (previewMedia = media)}
+        onMediaSelectionChange={() => {}}
+        onMediaSelectionDone={() => {}}
       />
       level: {uploadLevel}
     {:else if activeTab === "project-details" && selectedProject}
@@ -461,7 +433,6 @@
         {generatingVideo}
         {showLogs}
         {generationLogs}
-        onShowConfigModal={() => (showConfigModal = true)}
         onGenerateVideo={generateVideo}
         onShowMaterialsModal={(callback) => {
           showMaterialsModal = true;
@@ -509,12 +480,5 @@
       }
     }}
     onPreviewMedia={(media) => (previewMedia = media)}
-  />
-
-  <!-- Configuration Modal -->
-  <ConfigurationModal
-    {showConfigModal}
-    bind:videoConfig
-    onClose={() => (showConfigModal = false)}
   />
 </div>

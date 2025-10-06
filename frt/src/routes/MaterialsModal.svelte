@@ -2,6 +2,7 @@
   interface Project {
     id: string;
     title: string;
+    video_title: string;
   }
 
   interface MediaFile {
@@ -248,7 +249,7 @@
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
   >
     <div
-      class="w-full max-w-4xl max-h-[90vh] rounded-2xl bg-white p-6 shadow-xl overflow-hidden"
+      class="w-full h-full rounded-none bg-white p-6 shadow-xl overflow-hidden"
     >
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold">Manage Project Materials</h2>
@@ -299,7 +300,7 @@
 
       <!-- Materials Grid -->
       <div
-        class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto"
+        class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 h-[calc(100vh-200px)] overflow-y-auto"
       >
         {#if materialsTab === "public"}
           {#if loadingPublic}
@@ -322,7 +323,13 @@
                   file,
                 )
                   ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200'} bg-white transition-all hover:shadow-md relative group"
+                  : 'border-gray-200'} bg-white transition-all hover:shadow-md relative group cursor-pointer"
+                onclick={() =>
+                  onPreviewMedia({
+                    type: file.type === "image" ? "image" : "video",
+                    url: file.url,
+                    name: file.name,
+                  })}
               >
                 {#if file.type === "image"}
                   <div
@@ -348,7 +355,7 @@
                         ((e.target as HTMLVideoElement).currentTime = 0)}
                     ></video>
                     <div
-                      class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20"
+                      class="absolute inset-0 flex items-center justify-center bg-opacity-20"
                     >
                       <div class="rounded-full bg-white bg-opacity-80 p-2">
                         <svg
@@ -374,7 +381,8 @@
                   {#if isMaterialInProject(file)}
                     <button
                       class="bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onclick={() => {
+                      onclick={(e) => {
+                        e.stopPropagation();
                         const material = projectMaterials.find(
                           (m) => m.relativePath === `public/media/${file.name}`,
                         );
@@ -400,7 +408,10 @@
                   {:else}
                     <button
                       class="bg-green-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onclick={() => addMaterialToProject(file, true)}
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        addMaterialToProject(file, true);
+                      }}
                       title="Add to project"
                       aria-label="Add to project"
                     >
@@ -421,12 +432,14 @@
                   {/if}
                   <button
                     class="bg-white bg-opacity-90 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onclick={() =>
+                    onclick={(e) => {
+                      e.stopPropagation();
                       onPreviewMedia({
                         type: file.type === "image" ? "image" : "video",
                         url: file.url,
                         name: file.name,
-                      })}
+                      });
+                    }}
                     title="Preview"
                     aria-label="Preview"
                   >
@@ -487,7 +500,13 @@
                   file,
                 )
                   ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200'} bg-white transition-all hover:shadow-md relative group"
+                  : 'border-gray-200'} bg-white transition-all hover:shadow-md relative group cursor-pointer"
+                onclick={() =>
+                  onPreviewMedia({
+                    type: file.type === "image" ? "image" : "video",
+                    url: file.url,
+                    name: file.name,
+                  })}
               >
                 {#if file.type === "image"}
                   <div
@@ -526,7 +545,8 @@
                   {#if isUserMaterialInProject(file)}
                     <button
                       class="bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onclick={() => {
+                      onclick={(e) => {
+                        e.stopPropagation();
                         const material = projectMaterials.find(
                           (m) =>
                             m.relativePath ===
@@ -554,7 +574,10 @@
                   {:else}
                     <button
                       class="bg-green-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onclick={() => addMaterialToProject(file, false)}
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        addMaterialToProject(file, false);
+                      }}
                       title="Add to project"
                       aria-label="Add to project"
                     >
@@ -575,12 +598,14 @@
                   {/if}
                   <button
                     class="bg-white bg-opacity-90 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onclick={() =>
+                    onclick={(e) => {
+                      e.stopPropagation();
                       onPreviewMedia({
                         type: file.type === "image" ? "image" : "video",
                         url: file.url,
                         name: file.name,
-                      })}
+                      });
+                    }}
                     title="Preview"
                     aria-label="Preview"
                   >
@@ -621,21 +646,6 @@
             {/each}
           {/if}
         {/if}
-      </div>
-
-      <!-- Modal Actions -->
-      <div class="mt-6 flex gap-3 justify-end">
-        <button
-          onclick={onClose}
-          class="rounded-lg bg-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-400"
-        >
-          Cancel
-        </button>
-        <button
-          class="rounded-lg bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600"
-        >
-          Save Materials
-        </button>
       </div>
     </div>
   </div>

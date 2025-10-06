@@ -122,6 +122,7 @@ export async function POST({ params, request, cookies }: RequestEvent) {
         relativePath,
         fileName,
         fileType,
+        alias: fileName,
       })
       .returning();
 
@@ -176,6 +177,59 @@ export async function DELETE({ params, cookies, url }: RequestEvent) {
     return json({ success: true });
   } catch (err) {
     console.error("Error removing project material:", err);
+    return error(500, { message: "Internal server error" });
+  }
+}
+
+export async function PATCH({ params, request, cookies }: RequestEvent) {
+  const projectId = params.projectId;
+  if (!projectId) {
+    return error(400, { message: "Project ID is required" });
+  }
+
+  // Verify user session
+  const session = await verifySession(cookies);
+  if (!session) {
+    return error(401, { message: "Unauthorized" });
+  }
+
+  // Verify user owns the project
+  const projectData = await db
+    .select()
+    .from(project)
+    .where(and(eq(project.id, projectId), eq(project.userId, session.userId)))
+    .limit(1);
+
+  if (projectData.length === 0) {
+    return error(404, { message: "Project not found or access denied" });
+  }
+
+  const data = await request.json();
+  const { materialId, alias } = data;
+
+  if (!materialId || !alias) {
+    return error(400, {
+      message: "Missing required fields: materialId, alias",
+    });
+  }
+
+  // Update material alias
+  try {
+    const updatedMaterial = await db
+      .update(material)
+      .set({ alias })
+      .where(
+        and(eq(material.id, materialId), eq(material.projectId, projectId)),
+      )
+      .returning();
+
+    if (updatedMaterial.length === 0) {
+      return error(404, { message: "Material not found in project" });
+    }
+
+    return json(updatedMaterial[0]);
+  } catch (err) {
+    console.error("Error updating material alias:", err);
     return error(500, { message: "Internal server error" });
   }
 }

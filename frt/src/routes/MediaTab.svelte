@@ -4,6 +4,7 @@
   interface Project {
     id: string;
     title: string;
+    video_title: string;
   }
 
   interface MediaFile {
@@ -16,7 +17,7 @@
 
   let {
     selectedFile,
-    uploadLevel,
+    uploadLevel = $bindable("public"),
     selectedProject,
     isUploading,
     onMediaSelect,
@@ -24,7 +25,7 @@
     onPreviewMedia,
     onMediaSelectionChange,
     onMediaSelectionDone,
-  } = $props<{
+  }: {
     selectedFile: File | null;
     uploadLevel: string;
     selectedProject: Project | null;
@@ -39,7 +40,28 @@
     }) => void;
     onMediaSelectionChange: (selected: MediaFile[]) => void;
     onMediaSelectionDone: (selected: MediaFile[]) => void;
-  }>();
+  } = $props();
+
+  // Functions for parent component to call
+  function refreshPublicMedia() {
+    loadPublicMediaFiles();
+  }
+
+  function refreshUserMedia() {
+    loadUserMediaFiles();
+  }
+
+  function refreshAllMedia() {
+    loadPublicMediaFiles();
+    loadUserMediaFiles();
+  }
+
+  // Expose functions to parent component
+  $inspect(() => ({
+    refreshPublicMedia,
+    refreshUserMedia,
+    refreshAllMedia,
+  }));
 
   let publicMediaFiles = $state<MediaFile[]>([]);
   let userMediaFiles = $state<MediaFile[]>([]);
@@ -142,8 +164,8 @@
     if (selectedMedia.length === 0) return;
 
     // Filter to only public media files for deletion
-    const publicFiles = selectedMedia.filter(file =>
-      publicMediaFiles.some(publicFile => publicFile.name === file.name)
+    const publicFiles = selectedMedia.filter((file) =>
+      publicMediaFiles.some((publicFile) => publicFile.name === file.name),
     );
 
     if (publicFiles.length === 0) {
@@ -153,7 +175,10 @@
 
     isDeleting = true;
     try {
-      console.log("🗑️ [CLIENT] Deleting media files:", publicFiles.map(f => f.name));
+      console.log(
+        "🗑️ [CLIENT] Deleting media files:",
+        publicFiles.map((f) => f.name),
+      );
       const response = await fetch("/api/media", {
         method: "DELETE",
         headers: {
@@ -161,7 +186,7 @@
         },
         body: JSON.stringify({
           level: "public",
-          files: publicFiles.map(f => f.name),
+          files: publicFiles.map((f) => f.name),
         }),
       });
 
@@ -173,7 +198,10 @@
         // Clear selection
         selectedMedia = [];
       } else {
-        console.error("🗑️ [CLIENT] Failed to delete media:", await response.text());
+        console.error(
+          "🗑️ [CLIENT] Failed to delete media:",
+          await response.text(),
+        );
         alert("Failed to delete some media files. Please try again.");
       }
     } catch (err) {
@@ -187,6 +215,29 @@
   onMount(() => {
     loadPublicMediaFiles();
     loadUserMediaFiles();
+
+    // Listen for media upload completion events
+    const handleMediaUploadComplete = (event: CustomEvent) => {
+      const { level } = event.detail;
+      if (level === "public") {
+        loadPublicMediaFiles();
+      } else if (level === "user") {
+        loadUserMediaFiles();
+      }
+    };
+
+    window.addEventListener(
+      "mediaUploadComplete",
+      handleMediaUploadComplete as EventListener,
+    );
+
+    // Cleanup event listener on component destroy
+    return () => {
+      window.removeEventListener(
+        "mediaUploadComplete",
+        handleMediaUploadComplete as EventListener,
+      );
+    };
   });
 </script>
 
@@ -584,7 +635,7 @@
                         ((e.target as HTMLVideoElement).currentTime = 0)}
                     ></video>
                     <div
-                      class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20"
+                      class="absolute inset-0 flex items-center justify-center bg-opacity-20"
                     >
                       <div class="rounded-full bg-white bg-opacity-80 p-2">
                         <svg
