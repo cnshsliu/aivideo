@@ -120,6 +120,19 @@ export const project = pgTable("project", {
   bgmFadeIn: decimal("bgm_fade_in", { precision: 3, scale: 1 }).default("0.5"),
   bgmFadeOut: decimal("bgm_fade_out", { precision: 3, scale: 1 }).default("0.5"),
   bgmVolume: decimal("bgm_volume", { precision: 2, scale: 1 }).default("0.5"),
+  // Progress fields
+  progressStep: text("progress_step", { enum: ["preparing", "running", "complete", "error"] }),
+  progressCommand: text("progress_command"),
+  progressResult: text("progress_result"),
+  progressLog: text("progress_log"),
+  progressCreatedAt: timestamp("progress_created_at", {
+    withTimezone: true,
+    mode: "date",
+  }),
+  progressUpdatedAt: timestamp("progress_updated_at", {
+    withTimezone: true,
+    mode: "date",
+  }),
   createdAt: timestamp("created_at", {
     withTimezone: true,
     mode: "date",

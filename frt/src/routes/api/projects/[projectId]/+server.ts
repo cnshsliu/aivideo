@@ -3,6 +3,7 @@ import { verifySession } from "$lib/server/auth";
 import { db } from "$lib/server/db";
 import { project } from "$lib/server/db/schema";
 import { eq, and } from "drizzle-orm";
+import path from "path";
 
 export async function GET({ params, cookies }) {
   try {
@@ -78,7 +79,7 @@ export async function PUT({ params, request, cookies }) {
       bgmFile,
       bgmFadeIn,
       bgmFadeOut,
-      bgmVolume
+      bgmVolume,
     } = await request.json();
 
     if (!title || !name) {
@@ -108,7 +109,7 @@ export async function PUT({ params, request, cookies }) {
       existingName.length > 0 &&
       existingName[0].id !== projectId
     ) {
-      return error(409, { message: "Project name already exists" });
+      return json({ message: "Project name already exists" }, { status: 409 });
     }
 
     // Check uniqueness of title
@@ -123,7 +124,7 @@ export async function PUT({ params, request, cookies }) {
       existingTitle.length > 0 &&
       existingTitle[0].id !== projectId
     ) {
-      return error(409, { message: "Project title already exists" });
+      return json({ message: "Project title already exists" }, { status: 409 });
     }
 
     // Update project
@@ -189,6 +190,63 @@ export async function PUT({ params, request, cookies }) {
     return json({ success: true });
   } catch (err) {
     console.error("❌ [PROJECT UPDATE API] Project update error:", err);
+    return error(500, { message: "Internal server error" });
+  }
+}
+
+// DELETE method to delete a project
+export async function DELETE({ params, cookies }) {
+  try {
+    console.log(
+      "🗑️ [PROJECT DELETE API] DELETE request for project:",
+      params.projectId,
+    );
+
+    // Verify user session
+    const session = await verifySession(cookies);
+    if (!session) {
+      console.log("❌ [PROJECT DELETE API] Unauthorized access attempt");
+      return error(401, { message: "Unauthorized" });
+    }
+
+    const { projectId } = params;
+
+    // Check if project exists and belongs to user
+    const dbProject = await db
+      .select()
+      .from(project)
+      .where(and(eq(project.id, projectId), eq(project.userId, session.userId)))
+      .limit(1);
+
+    if (!dbProject || dbProject.length === 0) {
+      return error(404, { message: "Project not found" });
+    }
+
+    const projectName = dbProject[0].name;
+
+    // Delete project from database
+    await db
+      .delete(project)
+      .where(and(eq(project.id, projectId), eq(project.userId, session.userId)));
+
+    // Delete project folder from vault
+    try {
+      const { rm } = await import("fs/promises");
+      const vaultPath = process.env.AIV_VAULT_FOLDER || "./vault";
+      const userPath = path.join(vaultPath, session.username);
+      const projectPath = path.join(userPath, projectName);
+      
+      await rm(projectPath, { recursive: true, force: true });
+      console.log("🗑️ [PROJECT DELETE API] Project folder deleted:", projectPath);
+    } catch (fsErr) {
+      console.warn("⚠️ [PROJECT DELETE API] Failed to delete project folder:", fsErr);
+    }
+
+    console.log("✅ [PROJECT DELETE API] Project deleted:", projectId);
+
+    return json({ success: true });
+  } catch (err) {
+    console.error("❌ [PROJECT DELETE API] Project deletion error:", err);
     return error(500, { message: "Internal server error" });
   }
 }

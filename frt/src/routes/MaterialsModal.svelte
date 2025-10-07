@@ -330,6 +330,19 @@
                     url: file.url,
                     name: file.name,
                   })}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onPreviewMedia({
+                      type: file.type === "image" ? "image" : "video",
+                      url: file.url,
+                      name: file.name,
+                    });
+                  }
+                }}
+                role="button"
+                tabindex="0"
+                aria-label={`Preview ${file.name}`}
               >
                 {#if file.type === "image"}
                   <div
@@ -507,6 +520,19 @@
                     url: file.url,
                     name: file.name,
                   })}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onPreviewMedia({
+                      type: file.type === "image" ? "image" : "video",
+                      url: file.url,
+                      name: file.name,
+                    });
+                  }
+                }}
+                role="button"
+                tabindex="0"
+                aria-label={`Preview ${file.name}`}
               >
                 {#if file.type === "image"}
                   <div

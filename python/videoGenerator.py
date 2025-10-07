@@ -99,10 +99,12 @@ class VideoGenerator:
         for file_path in self.media_folder.iterdir():
             if file_path.suffix.lower() in media_extensions:
                 # Check for special files
-                if file_path.stem.lower() in ["start", "starting"]:
-                    self.start_file = file_path
-                elif file_path.stem.lower() == "closing":
-                    self.closing_file = file_path
+                if file_path.stem.lower().startswith("start"):
+                    if not self.start_file or file_path.name < self.start_file.name:
+                        self.start_file = file_path
+                elif file_path.stem.lower().startswith(("closing", "close")):
+                    if not self.closing_file or file_path.name < self.closing_file.name:
+                        self.closing_file = file_path
                 else:
                     all_files.append(file_path)
 

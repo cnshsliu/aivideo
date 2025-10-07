@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-
   interface Project {
     id: string;
     name: string;
@@ -150,37 +148,37 @@
     if (selectedProject) {
       loadProjectMaterials();
       staticSubtitleContent = selectedProject.staticSubtitle || "";
-      promptContent = selectedProject.prompt || "hello";
+      promptContent = selectedProject.prompt || "";
       // Initialize title settings from selectedProject
       keepTitle = selectedProject.keepTitle ?? true;
       addTimestampToTitle = selectedProject.addTimestampToTitle ?? false;
       videoTitle = selectedProject.video_title ?? selectedProject.title;
       titleFont = selectedProject.titleFont ?? "Hiragino Sans GB";
-      titleFontSize = selectedProject.titleFontSize ?? 24;
-      titlePosition = selectedProject.titlePosition ?? 50;
+      titleFontSize = selectedProject.titleFontSize ?? 72;
+      titlePosition = selectedProject.titlePosition ?? 20;
       // Initialize media settings from selectedProject
       sortOrder = selectedProject.sortOrder ?? "alphnum";
       keepClipLength = selectedProject.keepClipLength ?? false;
       clipNum = selectedProject.clipNum ?? null;
       // Initialize subtitle settings from selectedProject
       subtitleFont = selectedProject.subtitleFont ?? "Hiragino Sans GB";
-      subtitleFontSize = selectedProject.subtitleFontSize ?? 24;
-      subtitlePosition = selectedProject.subtitlePosition ?? 50;
-      genSubtitle = selectedProject.genSubtitle ?? true;
+      subtitleFontSize = selectedProject.subtitleFontSize ?? 48;
+      subtitlePosition = selectedProject.subtitlePosition ?? 80;
+      genSubtitle = selectedProject.genSubtitle ?? false;
       genVoice = selectedProject.genVoice ?? false;
       llmProvider = selectedProject.llmProvider ?? "qwen";
       // Initialize audio settings from selectedProject
       bgmFile = selectedProject.bgmFile ?? "";
-      bgmFadeIn = selectedProject.bgmFadeIn ?? 0.5;
-      bgmFadeOut = selectedProject.bgmFadeOut ?? 0.5;
-      bgmVolume = selectedProject.bgmVolume ?? 0.5;
+      bgmFadeIn = selectedProject.bgmFadeIn ?? 3.0;
+      bgmFadeOut = selectedProject.bgmFadeOut ?? 3.0;
+      bgmVolume = selectedProject.bgmVolume ?? 0.3;
     }
   });
 
   let isEditingTitle = $state(false);
   let editedTitle = $state("");
   let staticSubtitleContent = $state(selectedProject.staticSubtitle || "");
-  let promptContent = $state(selectedProject.prompt || "hello");
+  let promptContent = $state(selectedProject.prompt || "");
   // Title settings state variables
   let keepTitle = $state(selectedProject.keepTitle ?? true);
   let addTimestampToTitle = $state(
@@ -188,24 +186,24 @@
   );
   let videoTitle = $state(selectedProject.video_title ?? selectedProject.title);
   let titleFont = $state(selectedProject.titleFont ?? "Hiragino Sans GB");
-  let titleFontSize = $state(selectedProject.titleFontSize ?? 24);
-  let titlePosition = $state(selectedProject.titlePosition ?? 50);
+  let titleFontSize = $state(selectedProject.titleFontSize ?? 72);
+  let titlePosition = $state(selectedProject.titlePosition ?? 20);
   // Media settings state variables
-  let sortOrder = $state("alphnum");
-  let keepClipLength = $state(false);
-  let clipNum = $state<number | null>(null);
+  let sortOrder = $state(selectedProject.sortOrder ?? "alphnum");
+  let keepClipLength = $state(selectedProject.keepClipLength ?? false);
+  let clipNum = $state(selectedProject.clipNum ?? null);
   // Subtitle settings state variables
-  let subtitleFont = $state("Hiragino Sans GB");
-  let subtitleFontSize = $state(24);
-  let subtitlePosition = $state(50);
-  let genSubtitle = $state(true);
-  let genVoice = $state(false);
-  let llmProvider = $state("qwen");
+  let subtitleFont = $state(selectedProject.subtitleFont ?? "Hiragino Sans GB");
+  let subtitleFontSize = $state(selectedProject.subtitleFontSize ?? 48);
+  let subtitlePosition = $state(selectedProject.subtitlePosition ?? 80);
+  let genSubtitle = $state(selectedProject.genSubtitle ?? false);
+  let genVoice = $state(selectedProject.genVoice ?? false);
+  let llmProvider = $state(selectedProject.llmProvider ?? "qwen");
   // Audio settings state variables
-  let bgmFile = $state("");
-  let bgmFadeIn = $state(0.5);
-  let bgmFadeOut = $state(0.5);
-  let bgmVolume = $state(0.5);
+  let bgmFile = $state(selectedProject.bgmFile ?? "");
+  let bgmFadeIn = $state(selectedProject.bgmFadeIn ?? 3.0);
+  let bgmFadeOut = $state(selectedProject.bgmFadeOut ?? 3.0);
+  let bgmVolume = $state(selectedProject.bgmVolume ?? 0.3);
   // Background music files
   let bgmFiles = $state<string[]>([]);
   let audioPlayer = $state<HTMLAudioElement | null>(null);
@@ -330,8 +328,15 @@
         });
         isEditingTitle = false;
       } else {
-        const errorData = await response.json();
-        alert(errorData.message || "Failed to update title");
+        let errorMessage = "Failed to update title";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // If JSON parsing fails, use the status text
+          errorMessage = e ? response.statusText || errorMessage : "";
+        }
+        alert(errorMessage);
       }
     } catch (err) {
       alert("Network error");
@@ -427,8 +432,15 @@
         });
         console.log(selectedProject);
       } else {
-        const errorData = await response.json();
-        alert(errorData.message || "Failed to save content");
+        let errorMessage = "Failed to save content";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // If JSON parsing fails, use the status text
+          errorMessage = e ? response.statusText || errorMessage : "";
+        }
+        alert(errorMessage);
       }
     } catch (err) {
       alert("Network error");
@@ -516,8 +528,8 @@
     addTimestampToTitle = false;
     videoTitle = selectedProject.video_title ?? selectedProject.title;
     titleFont = "Hiragino Sans GB";
-    titleFontSize = 72;
-    titlePosition = 20;
+    titleFontSize = 72; // Correct default value
+    titlePosition = 20; // Correct default value
 
     // Media Settings defaults
     sortOrder = "alphnum";
@@ -526,17 +538,17 @@
 
     // Subtitle Settings defaults
     subtitleFont = "Hiragino Sans GB";
-    subtitleFontSize = 48;
-    subtitlePosition = 80;
-    genSubtitle = false;
+    subtitleFontSize = 48; // Correct default value
+    subtitlePosition = 80; // Correct default value
+    genSubtitle = false; // Correct default value
     genVoice = false;
     llmProvider = "qwen";
 
     // Audio Settings defaults
     bgmFile = "";
-    bgmFadeIn = 3.0;
-    bgmFadeOut = 3.0;
-    bgmVolume = 0.3;
+    bgmFadeIn = 3.0; // Correct default value
+    bgmFadeOut = 3.0; // Correct default value
+    bgmVolume = 0.3; // Correct default value
   }
 
   // Load BGM files when component mounts
@@ -559,13 +571,13 @@
         {#if isEditingTitle}
           <div class="flex items-center gap-2 mb-1">
             <div>
-              <label class="block text-sm font-medium text-gray-700"
-                >Project Title</label
-              >
-              <input
-                bind:value={editedTitle}
-                class="text-xl font-semibold border rounded px-2 py-1 w-full"
-              />
+              <label class="block text-sm font-medium text-gray-700">
+                Project Title
+                <input
+                  bind:value={editedTitle}
+                  class="text-xl font-semibold border rounded px-2 py-1 w-full"
+                />
+              </label>
             </div>
             <button
               onclick={saveTitle}
@@ -609,6 +621,7 @@
         <button
           onclick={resetToDefaults}
           class="rounded-lg bg-gray-500 px-4 py-3 text-white transition-all duration-200 hover:bg-gray-600"
+          aria-label="Reset all settings to default values"
         >
           To Default
         </button>
@@ -617,12 +630,14 @@
           <button
             onclick={loadContent}
             class="rounded-lg bg-gray-500 px-4 py-3 text-white transition-all duration-200 hover:bg-gray-600"
+            aria-label="Reload content from server"
           >
             Reload Content
           </button>
           <button
             onclick={saveContent}
             class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+            aria-label="Save changes to server"
           >
             Save Changes
           </button>
@@ -667,13 +682,13 @@
       </p>
       <!-- Generate Subtitles -->
       <div class="flex items-center justify-between">
-        <label class="text-sm font-medium text-gray-700"
-          >Generate Subtitles</label
+        <span class="text-sm font-medium text-gray-700">Generate Subtitles</span
         >
         <button
           onclick={() => (genSubtitle = !genSubtitle)}
           class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${genSubtitle ? "bg-blue-600" : "bg-gray-200"}`}
           aria-pressed={genSubtitle}
+          aria-label="Toggle generate subtitles"
         >
           <span
             class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${genSubtitle ? "translate-x-6" : "translate-x-1"}`}
@@ -683,11 +698,12 @@
 
       <!-- Generate Voice -->
       <div class="flex items-center justify-between">
-        <label class="text-sm font-medium text-gray-700">Generate Voice</label>
+        <span class="text-sm font-medium text-gray-700">Generate Voice</span>
         <button
           onclick={() => (genVoice = !genVoice)}
           class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${genVoice ? "bg-blue-600" : "bg-gray-200"}`}
           aria-pressed={genVoice}
+          aria-label="Toggle generate voice"
         >
           <span
             class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${genVoice ? "translate-x-6" : "translate-x-1"}`}
@@ -697,8 +713,11 @@
 
       <!-- LLM Provider -->
       <div class="flex items-center justify-between">
-        <label class="text-sm font-medium text-gray-700">LLM Provider</label>
+        <label for="llm-provider" class="text-sm font-medium text-gray-700">
+          LLM Provider
+        </label>
         <select
+          id="llm-provider"
           bind:value={llmProvider}
           class="w-50 rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
         >
@@ -770,13 +789,18 @@
             <div class="space-y-4">
               <!-- Keep Title -->
               <div class="flex items-center justify-between">
-                <label class="text-sm font-medium text-gray-700"
-                  >Keep Title</label
+                <label
+                  for="keep-title"
+                  class="text-sm font-medium text-gray-700"
                 >
+                  Keep Title
+                </label>
                 <button
+                  id="keep-title"
                   onclick={() => (keepTitle = !keepTitle)}
                   class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${keepTitle ? "bg-blue-600" : "bg-gray-200"}`}
                   aria-pressed={keepTitle}
+                  aria-label="Toggle keep title"
                 >
                   <span
                     class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${keepTitle ? "translate-x-6" : "translate-x-1"}`}
@@ -786,13 +810,18 @@
 
               <!-- Add Timestamp to Title -->
               <div class="flex items-center justify-between">
-                <label class="text-sm font-medium text-gray-700"
-                  >Add Timestamp to Title</label
+                <label
+                  for="add-timestamp-to-title"
+                  class="text-sm font-medium text-gray-700"
                 >
+                  Add Timestamp to Title
+                </label>
                 <button
+                  id="add-timestamp-to-title"
                   onclick={() => (addTimestampToTitle = !addTimestampToTitle)}
                   class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${addTimestampToTitle ? "bg-blue-600" : "bg-gray-200"}`}
                   aria-pressed={addTimestampToTitle}
+                  aria-label="Toggle add timestamp to title"
                 >
                   <span
                     class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${addTimestampToTitle ? "translate-x-6" : "translate-x-1"}`}
@@ -802,10 +831,14 @@
 
               <!-- Font Selection -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="title-font"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Font
                 </label>
                 <select
+                  id="title-font"
                   bind:value={titleFont}
                   class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
                 >
@@ -820,10 +853,14 @@
 
               <!-- Font Size -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="title-font-size"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Font Size: {titleFontSize}px
                 </label>
                 <input
+                  id="title-font-size"
                   type="range"
                   min="48"
                   max="100"
@@ -838,10 +875,14 @@
 
               <!-- Title Position -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="title-position"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Title Position: {titlePosition}%
                 </label>
                 <input
+                  id="title-position"
                   type="range"
                   min="0"
                   max="100"
@@ -863,10 +904,14 @@
             <div class="space-y-4">
               <!-- Subtitle Font -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="subtitle-font"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Subtitle Font
                 </label>
                 <select
+                  id="subtitle-font"
                   bind:value={subtitleFont}
                   class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
                 >
@@ -881,10 +926,14 @@
 
               <!-- Subtitle Font Size -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="subtitle-font-size"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Subtitle Font Size: {subtitleFontSize}px
                 </label>
                 <input
+                  id="subtitle-font-size"
                   type="range"
                   min="48"
                   max="100"
@@ -899,10 +948,14 @@
 
               <!-- Subtitle Position -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="subtitle-position"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Subtitle Position: {subtitlePosition}%
                 </label>
                 <input
+                  id="subtitle-position"
                   type="range"
                   min="0"
                   max="100"
@@ -924,10 +977,14 @@
             <div class="space-y-4">
               <!-- Sort Order -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="sort-order"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Sort Order
                 </label>
                 <select
+                  id="sort-order"
                   bind:value={sortOrder}
                   class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
                 >
@@ -938,13 +995,18 @@
 
               <!-- Keep Clip Length -->
               <div class="flex items-center justify-between">
-                <label class="text-sm font-medium text-gray-700"
-                  >Keep Clip Length</label
+                <label
+                  for="keep-clip-length"
+                  class="text-sm font-medium text-gray-700"
                 >
+                  Keep Clip Length
+                </label>
                 <button
+                  id="keep-clip-length"
                   onclick={() => (keepClipLength = !keepClipLength)}
                   class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${keepClipLength ? "bg-blue-600" : "bg-gray-200"}`}
                   aria-pressed={keepClipLength}
+                  aria-label="Toggle keep clip length"
                 >
                   <span
                     class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${keepClipLength ? "translate-x-6" : "translate-x-1"}`}
@@ -954,10 +1016,14 @@
 
               <!-- Number of Clips -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="clip-num"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Number of Clips
                 </label>
                 <input
+                  id="clip-num"
                   type="number"
                   bind:value={clipNum}
                   placeholder="Auto"
@@ -974,11 +1040,15 @@
             <div class="space-y-4">
               <!-- BGM File Selector -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="bgm-file"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Background Music File
                 </label>
                 <div class="flex gap-2">
                   <select
+                    id="bgm-file"
                     value={bgmFile}
                     onchange={(e) => {
                       const target = e.target as HTMLSelectElement;
@@ -987,7 +1057,7 @@
                     class="flex-1 rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">None</option>
-                    {#each bgmFiles as file}
+                    {#each bgmFiles as file (file)}
                       <option value={file}>{file}</option>
                     {/each}
                   </select>
@@ -1033,10 +1103,14 @@
 
               <!-- BGM Fade In -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="bgm-fade-in"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   BGM Fade In (seconds): {bgmFadeIn}
                 </label>
                 <input
+                  id="bgm-fade-in"
                   type="range"
                   min="0"
                   max="5"
@@ -1052,10 +1126,14 @@
 
               <!-- BGM Fade Out -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="bgm-fade-out"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   BGM Fade Out (seconds): {bgmFadeOut}
                 </label>
                 <input
+                  id="bgm-fade-out"
                   type="range"
                   min="0"
                   max="5"
@@ -1071,10 +1149,14 @@
 
               <!-- BGM Volume -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  for="bgm-volume"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
                   BGM Volume: {bgmVolume}
                 </label>
                 <input
+                  id="bgm-volume"
                   type="range"
                   min="0"
                   max="1"
@@ -1258,14 +1340,17 @@
                       material.fileName,
                     )}
                   onkeydown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
                       startEditingAlias(
                         material.id,
                         material.alias,
                         material.fileName,
                       );
                     }
-                  }}>{material.alias ?? "edit alias"}</span
+                  }}
+                  aria-label={`Edit alias for ${material.fileName}`}
+                  >{material.alias ?? "edit alias"}</span
                 >
               {/if}
               <p class="text-xs text-gray-500">{material.fileType}</p>
@@ -1281,6 +1366,7 @@
           <button
             class="rounded-lg bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600 flex flex-col items-center"
             onclick={() => onShowMaterialsModal(() => loadProjectMaterials())}
+            aria-label="Manage project materials"
           >
             <svg
               class="h-12 w-12"

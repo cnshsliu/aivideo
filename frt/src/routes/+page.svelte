@@ -51,7 +51,7 @@
   let selectedFile = $state<File | null>(null);
   let uploadLevel = $state("public"); // 'public', 'user', 'project'
   let isUploading = $state(false);
-  let mediaTabRef = $state<any>(null);
+  let mediaTabRef = $state<MediaTab | null>(null);
 
   // Materials management
   let showMaterialsModal = $state(false);
@@ -319,10 +319,12 @@
 
       if (response.ok) {
         // Dispatch a custom event to notify MediaTab of successful upload
-        window.dispatchEvent(new CustomEvent("mediaUploadComplete", {
-          detail: { level: uploadLevel }
-        }));
-        
+        window.dispatchEvent(
+          new CustomEvent("mediaUploadComplete", {
+            detail: { level: uploadLevel },
+          }),
+        );
+
         await loadUserProjects(); // Refresh if needed
         success = "Media uploaded successfully!";
         setTimeout(() => (success = ""), 3000);
@@ -422,7 +424,12 @@
         {isUploading}
         onMediaSelect={(file: File) => (selectedFile = file)}
         onUpload={uploadMedia}
-        onPreviewMedia={(media: { type: "image" | "video"; url: string; name: string; poster?: string }) => (previewMedia = media)}
+        onPreviewMedia={(media: {
+          type: "image" | "video";
+          url: string;
+          name: string;
+          poster?: string;
+        }) => (previewMedia = media)}
         onMediaSelectionChange={() => {}}
         onMediaSelectionDone={() => {}}
       />

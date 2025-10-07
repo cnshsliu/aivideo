@@ -10,7 +10,8 @@ import {
   setSessionTokenCookie,
 } from "$lib/server/auth";
 
-export async function POST({ request, cookies }) {
+export async function POST(event) {
+  const { request, cookies } = event;
   console.log("🔐 [AUTH API] POST request received");
 
   const formData = await request.formData();
@@ -26,12 +27,12 @@ export async function POST({ request, cookies }) {
   // Validate input
   const usernameValidation = validateUsername(username);
   if (!usernameValidation.valid) {
-    return error(400, { message: usernameValidation.error });
+    return error(400, usernameValidation.error || "Invalid username");
   }
 
   const passwordValidation = validatePassword(password);
   if (!passwordValidation.valid) {
-    return error(400, { message: passwordValidation.error });
+    return error(400, passwordValidation.error || "Invalid password");
   }
 
   // Check if user exists
@@ -45,10 +46,12 @@ export async function POST({ request, cookies }) {
 
     if (result.error) {
       console.log("❌ [AUTH API] Login failed:", result.error);
-      return error(401, {
-        message: result.error,
-        action: "login_failed",
-      });
+      return error(401, result.error);
+    }
+
+    if (!result.user) {
+      console.log("❌ [AUTH API] Login failed: User not found");
+      return error(401, "User not found");
     }
 
     console.log("✅ [AUTH API] Login successful, creating session");
@@ -56,7 +59,7 @@ export async function POST({ request, cookies }) {
       // Create session for existing user
       const sessionToken = generateSessionToken();
       const session = await createSession(sessionToken, result.user.id);
-      setSessionTokenCookie({ cookies }, sessionToken, session.expiresAt);
+      setSessionTokenCookie(event, sessionToken, session.expiresAt);
 
       console.log(
         "🎫 [AUTH API] Session created for user:",
@@ -86,7 +89,7 @@ export async function POST({ request, cookies }) {
       // Create session for new user
       const sessionToken = generateSessionToken();
       const session = await createSession(sessionToken, newUser.id);
-      setSessionTokenCookie({ cookies }, sessionToken, session.expiresAt);
+      setSessionTokenCookie(event, sessionToken, session.expiresAt);
 
       console.log(
         "🎉 [AUTH API] Registration and login completed successfully",

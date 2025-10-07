@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { stopPropagation } from "svelte/legacy";
+
   interface Project {
     id: string;
     name: string;
@@ -10,11 +12,27 @@
     staticSubtitle?: string;
   }
 
-  export let projects: Project[];
-  export let onSelectProject: (project: Project) => void;
-  export let onCopyProject: (project: Project) => void;
-  export let onDeleteProject: (projectId: string) => void;
-  export let onCreateProject: () => void;
+  const { projects, onSelectProject, onCopyProject, onDeleteProject, onCreateProject } = $props();
+
+  let showDeleteConfirm = $state(false);
+  let projectToDelete = $state<{ id: string; name: string } | null>(null);
+
+  function requestDelete(projectId: string, projectName: string) {
+    projectToDelete = { id: projectId, name: projectName };
+    showDeleteConfirm = true;
+  }
+
+  function confirmDelete() {
+    if (projectToDelete) {
+      onDeleteProject(projectToDelete.id);
+      closeDeleteConfirm();
+    }
+  }
+
+  function closeDeleteConfirm() {
+    showDeleteConfirm = false;
+    projectToDelete = null;
+  }
 </script>
 
 <!-- Projects Tab -->
@@ -38,14 +56,14 @@
         tabindex="0"
         onclick={() => onSelectProject(project)}
         onkeydown={(e) => {
-          if (e.key === 'Enter') {
+          if (e.key === "Enter") {
             onSelectProject(project);
-          } else if (e.key === ' ') {
+          } else if (e.key === " ") {
             e.preventDefault();
           }
         }}
         onkeyup={(e) => {
-          if (e.key === ' ') {
+          if (e.key === " ") {
             onSelectProject(project);
           }
         }}
@@ -106,7 +124,10 @@
               </svg>
             </button>
             <button
-              onclick={() => onDeleteProject(project.id)}
+              onclick={(e) => {
+                e.stopPropagation();
+                requestDelete(project.id, project.name);
+              }}
               class="text-red-600 hover:text-red-800 transition-colors"
               title="Delete Project"
               aria-label="Delete Project"
@@ -138,3 +159,29 @@
     {/each}
   </div>
 </div>
+
+<!-- Delete Confirmation Modal -->
+{#if showDeleteConfirm && projectToDelete}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div class="rounded-xl bg-white p-6 shadow-lg w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">Confirm Deletion</h3>
+      <p class="mb-6">
+        Are you sure you want to delete the project "<strong>{projectToDelete.name}</strong>"? This action cannot be undone.
+      </p>
+      <div class="flex justify-end gap-3">
+        <button
+          onclick={closeDeleteConfirm}
+          class="rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100"
+        >
+          Cancel
+        </button>
+        <button
+          onclick={confirmDelete}
+          class="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

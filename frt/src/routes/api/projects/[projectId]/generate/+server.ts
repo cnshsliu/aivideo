@@ -1,0 +1,326 @@
+import { json, error } from "@sveltejs/kit";
+import { verifySession } from "$lib/server/auth";
+import { db } from "$lib/server/db";
+import { project, material } from "$lib/server/db/schema";
+import { eq, and } from "drizzle-orm";
+import fs from "fs/promises";
+import fsSync from "fs";
+import path from "path";
+import { spawn } from "child_process";
+import type { Project } from "$lib/server/db/schema";
+
+export async function POST({ params, cookies }) {
+  try {
+    console.log(
+      "🎬 [VIDEO GENERATE API] POST request to generate video for project:",
+      params.projectId,
+    );
+
+    // Verify user session
+    const session = await verifySession(cookies);
+    if (!session) {
+      console.log("❌ [VIDEO GENERATE API] Unauthorized access attempt");
+      return error(401, { message: "Unauthorized" });
+    }
+
+    const { projectId } = params;
+
+    // Fetch project
+    const dbProject = await db
+      .select()
+      .from(project)
+      .where(and(eq(project.id, projectId), eq(project.userId, session.userId)))
+      .limit(1);
+
+    if (!dbProject || dbProject.length === 0) {
+      return error(404, { message: "Project not found" });
+    }
+
+    const selectedProject = dbProject[0];
+
+    // Get vault path
+    const vaultPath = process.env.AIV_VAULT_FOLDER || "./vault";
+    const fullVaultPath = path.resolve(vaultPath);
+    const userPath = path.join(fullVaultPath, session.username);
+    const projectPath = path.join(userPath, selectedProject.name);
+    const logPath = path.join(projectPath, "log.txt");
+
+    // Check if project folder exists
+    try {
+      await fs.access(projectPath);
+    } catch (err) {
+      return error(404, { message: err ? "Project folder not found" : "" });
+    }
+
+    // Create progress record
+    await db.update(project).set({
+      progressStep: "preparing",
+      progressCommand: "",
+      progressResult: "",
+      progressLog: logPath,
+      progressCreatedAt: new Date(),
+      progressUpdatedAt: new Date()
+    }).where(eq(project.id, projectId));
+
+    // Run the video generation process
+    await prepareAndRunGeneration(selectedProject, projectPath);
+
+    console.log("✅ [VIDEO GENERATE API] Video generation started:", projectId);
+
+    return json({ success: true });
+  } catch (err) {
+    console.error("❌ [VIDEO GENERATE API] Video generation error:", err);
+    return error(500, { message: "Internal server error" });
+  }
+}
+
+async function prepareAndRunGeneration(theProject: Project, projectPath: string) {
+  const projectId = theProject.id;
+  try {
+    // Step 1: Preparing
+    console.log("🔄 [VIDEO GENERATE] Preparing step for project:", theProject.id);
+
+    // Update progress to preparing
+    await db.update(project).set({
+      progressStep: "preparing",
+      progressUpdatedAt: new Date()
+    }).where(eq(project.id, projectId));
+
+    // 2.1 Copy project.prompt to PROJ_DIR/prompt/prompt.md
+    if (theProject.prompt && theProject.prompt!.trim()) {
+      const promptDir = path.join(projectPath, "prompt");
+      await fs.mkdir(promptDir, { recursive: true });
+      const promptPath = path.join(promptDir, "prompt.md");
+      await fs.writeFile(promptPath, theProject.prompt!.trim());
+      console.log("📝 [VIDEO GENERATE] Prompt file created:", promptPath);
+    }
+
+    // 2.2 Copy project.static_subtitle to PROJ_DIR/static_subtitle.txt
+    if (theProject.staticSubtitle && theProject.staticSubtitle!.trim()) {
+      const staticSubtitlePath = path.join(projectPath, "static_subtitle.txt");
+      await fs.writeFile(staticSubtitlePath, theProject.staticSubtitle!.trim());
+      console.log("📝 [VIDEO GENERATE] Static subtitle file created:", staticSubtitlePath);
+    }
+
+    // 2.3 Copy project materials files to PROJ_DIR/media
+    const materials = await db
+      .select()
+      .from(material)
+      .where(eq(material.projectId, theProject.id));
+
+    if (materials.length > 0) {
+      const mediaDir = path.join(projectPath, "media");
+      await fs.mkdir(mediaDir, { recursive: true });
+      
+      for (const mat of materials) {
+        const vaultPath = process.env.AIV_VAULT_FOLDER || "./vault";
+        const sourcePath = path.join(vaultPath, mat.relativePath);
+        const destPath = path.join(mediaDir, mat.fileName);
+        
+        try {
+          await fs.copyFile(sourcePath, destPath);
+          console.log("📁 [VIDEO GENERATE] Copied material:", mat.fileName);
+        } catch (copyErr) {
+          console.error("❌ [VIDEO GENERATE] Error copying material:", mat.fileName, copyErr);
+        }
+      }
+    }
+
+    // 2.4 Compose command string
+    const command = composeCommand(theProject, projectPath);
+    console.log("🔧 [VIDEO GENERATE] Composed command:", command);
+
+    // Update progress with command
+    await db.update(project).set({
+      progressCommand: command,
+      progressUpdatedAt: new Date()
+    }).where(eq(project.id, projectId));
+
+    // Step 2: Running
+    console.log("🏃 [VIDEO GENERATE] Running step for project:", theProject.id);
+
+    // Update progress to running
+    await db.update(project).set({
+      progressStep: "running",
+      progressUpdatedAt: new Date()
+    }).where(eq(project.id, projectId));
+
+    // Execute command and redirect logs
+    const logPath = path.join(projectPath, "log.txt");
+    console.log("Logpath:", logPath);
+    await executeCommandAndLog(command, logPath, projectId);
+
+  } catch (err) {
+    console.error("❌ [VIDEO GENERATE] Error in prepareAndRunGeneration:", err);
+    // Update progress with error
+    await db.update(project).set({
+      progressStep: "complete",
+      progressUpdatedAt: new Date()
+    }).where(eq(project.id, projectId));
+  }
+}
+
+function composeCommand(project: Project, projectPath: string): string {
+  // Base command with absolute path to main.py
+  const mainDir = process.env.PYTHON_GEN_DIR || "/Users/lucas/dev/aivideo/python";
+  const mainPyPath = path.join(mainDir, "main.py");
+  let command = `"${mainPyPath}" --folder "${projectPath}"`;
+
+  // Add LLM provider
+  if (project.llmProvider) {
+    command += ` --llm-provider ${project.llmProvider}`;
+  }
+
+  // Add title options
+  if (project.titleFontSize) {
+    command += ` --title-font-size ${project.titleFontSize}`;
+  }
+
+  if (project.titlePosition) {
+    command += ` --title-position ${project.titlePosition}`;
+  }
+
+  if (project.titleFont) {
+    command += ` --title-font "${project.titleFont}"`;
+  }
+
+  if (project.keepTitle) {
+    command += " --keep-title";
+  }
+
+  if (project.video_title) {
+    command += ` --title "${project.video_title}"`;
+  }
+
+  // Add background music
+  if (project.bgmFile) {
+    command += ` --mp3 "${project.bgmFile}"`;
+  }
+
+  if (project.genSubtitle) {
+    command += ` --gen-subtitle`;
+  }
+  // Add text file path
+  const textPath = path.join(projectPath, "prompt", "prompt.md");
+  command += ` --text "${textPath}"`;
+
+  const generated_audio_mp3_file = path.join(projectPath, "generated_audio.mp3");
+  // Add voice generation
+  if (project.genVoice) {
+    command += " --gen-voice";
+  } else if (!fsSync.existsSync(generated_audio_mp3_file)) {
+    command += " --gen-voice";
+  }
+
+
+  // Add open flag
+  if (project.openAfterGeneration) {
+    command += " --open";
+  }
+
+  // Add timestamp to title
+  if (project.addTimestampToTitle) {
+    command += " --title-timestamp";
+  }
+
+  console.log(command);
+  return command;
+}
+
+async function executeCommandAndLog(command: string, logPath: string, projectId: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    console.log("🚀 [VIDEO GENERATE] Log Path:", logPath);
+    console.log("🚀 [VIDEO GENERATE] Executing command:", command);
+
+    // Split command into parts for spawn, handling quoted arguments properly
+    const args = command.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+    const cmd = "/Users/lucas/miniconda3/envs/aivideo/bin/python"
+    // Remove quotes from arguments
+    const cleanArgs = args.map(arg => arg.replace(/^"(.*)"$/, '$1'));
+
+    // Create log file write stream
+    const logStream = fsSync.createWriteStream(logPath, { flags: 'a' });
+
+    // Execute command with the correct working directory
+    const mainDir = process.env.PYTHON_GEN_DIR || "/Users/lucas/dev/aivideo/python";
+    console.log("📂 [VIDEO GENERATE] main.py is in:", mainDir);
+
+    // Use the conda Python interpreter directly
+    const child = spawn(cmd, cleanArgs, {
+      cwd: mainDir, // Python directory where main.py is located
+    });
+
+    // Write stdout and stderr to log file
+    child.stdout.pipe(logStream);
+    child.stderr.pipe(logStream);
+
+    // Also log to console
+    child.stdout.on('data', (data) => {
+      console.log(`[PYTHON STDOUT] ${data}`);
+    });
+
+    child.stderr.on('data', (data) => {
+      console.log(`[FYTHON STDERR] ${data}`);
+    });
+
+
+    // Handle process completion
+    child.on('close', async (code) => {
+      console.log(`🎬 [VIDEO GENERATE] Process exited with code ${code}`);
+
+      try {
+        // Close log stream
+        logStream.end();
+
+        // Update progress to complete
+        await db.update(project).set({
+          progressStep: "complete",
+          progressLog: logPath,
+          progressUpdatedAt: new Date()
+        }).where(eq(project.id, projectId));
+
+        // Try to find the result video file
+        try {
+          const outputDir = path.join(path.dirname(logPath), "output");
+          const files = await fs.readdir(outputDir);
+          const videoFiles = files.filter(file =>
+            file.endsWith('.mp4') || file.endsWith('.mov') || file.endsWith('.avi')
+          );
+
+          if (videoFiles.length > 0) {
+            const resultPath = path.join(outputDir, videoFiles[0]);
+            await db.update(project).set({
+              progressResult: resultPath,
+              progressUpdatedAt: new Date()
+            }).where(eq(project.id, projectId));
+          }
+        } catch (fileErr) {
+          console.warn("⚠️ [VIDEO GENERATE] Could not find result video file:", fileErr);
+        }
+
+        resolve();
+      } catch (err) {
+        console.error("❌ [VIDEO GENERATE] Error updating progress:", err);
+        reject(err);
+      }
+    });
+
+    // Handle process error
+    child.on('error', async (err) => {
+      console.error("❌ [VIDEO GENERATE] Process error:", err);
+
+      try {
+        // Update progress with error
+        await db.update(project).set({
+          progressStep: "error",
+          progressLog: logPath,
+          progressUpdatedAt: new Date()
+        }).where(eq(project.id, projectId));
+      } catch (dbErr) {
+        console.error("❌ [VIDEO GENERATE] Error updating progress:", dbErr);
+      }
+
+      reject(err);
+    });
+  });
+}

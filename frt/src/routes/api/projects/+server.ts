@@ -81,7 +81,20 @@ export async function POST({ request, cookies }) {
       addTimestampToTitle,
       titleFont,
       titleFontSize,
-      titlePosition
+      titlePosition,
+      sortOrder,
+      keepClipLength,
+      clipNum,
+      subtitleFont,
+      subtitleFontSize,
+      subtitlePosition,
+      genSubtitle,
+      genVoice,
+      llmProvider,
+      bgmFile,
+      bgmFadeIn,
+      bgmFadeOut,
+      bgmVolume
     } = data;
 
     if (!name || !title) {
@@ -94,22 +107,35 @@ export async function POST({ request, cookies }) {
     // Generate project ID
     const projectId = nanoid();
 
-    // Create project in database
+    // Create project in database with all default values
     const newProject = await db
       .insert(project)
       .values({
         id: projectId,
         name: name,
         title: title,
-        video_title: video_title || "",
+        video_title: video_title || title, // Default to title if not provided
         userId,
         prompt: null,
         staticSubtitle: null,
         keepTitle: keepTitle !== undefined ? keepTitle : true,
         addTimestampToTitle: addTimestampToTitle !== undefined ? addTimestampToTitle : false,
-        titleFont: titleFont || "Arial",
-        titleFontSize: titleFontSize || 24,
-        titlePosition: titlePosition || 50,
+        titleFont: titleFont || "Hiragino Sans GB",
+        titleFontSize: titleFontSize || 72,
+        titlePosition: titlePosition || 20,
+        sortOrder: sortOrder || "alphnum",
+        keepClipLength: keepClipLength !== undefined ? keepClipLength : false,
+        clipNum: clipNum !== undefined ? clipNum : null,
+        subtitleFont: subtitleFont || "Hiragino Sans GB",
+        subtitleFontSize: subtitleFontSize || 48,
+        subtitlePosition: subtitlePosition || 80,
+        genSubtitle: genSubtitle !== undefined ? genSubtitle : false,
+        genVoice: genVoice !== undefined ? genVoice : false,
+        llmProvider: llmProvider || "qwen",
+        bgmFile: bgmFile || "",
+        bgmFadeIn: bgmFadeIn !== undefined ? bgmFadeIn : 3.0,
+        bgmFadeOut: bgmFadeOut !== undefined ? bgmFadeOut : 3.0,
+        bgmVolume: bgmVolume !== undefined ? bgmVolume : 0.3,
       })
       .returning();
 
