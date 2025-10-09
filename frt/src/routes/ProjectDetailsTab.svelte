@@ -26,6 +26,8 @@
     bgmFadeIn?: number;
     bgmFadeOut?: number;
     bgmVolume?: number;
+    progressStep?: string;
+    progressResult?: string;
   }
 
   interface Material {
@@ -558,6 +560,26 @@
 
   // Tab state
   let activeTab = $state("video-title");
+
+  // Function to get project result video URL
+  function getResultVideoUrl(projectId: string): string {
+    return `/api/projects/${projectId}/result`;
+  }
+
+  // Function to download the result video
+  function downloadResultVideo(projectId: string): void {
+    const downloadUrl = `/api/projects/${projectId}/result?download=true`;
+    window.open(downloadUrl, "_blank");
+  }
+
+  // Function to preview the result video
+  function previewResultVideo(projectId: string): void {
+    onPreviewMedia({
+      type: "video",
+      url: getResultVideoUrl(projectId),
+      name: "Result Video",
+    });
+  }
 </script>
 
 <!-- Project Details Tab -->
@@ -591,31 +613,112 @@
             >
           </div>
         {:else}
-          <div class="flex items-center gap-2 mb-1">
-            <div>
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2">
               <h2 class="text-xl font-semibold">{selectedProject.title}</h2>
+              <button onclick={startEditingTitle} aria-label="Edit titles">
+                <svg
+                  class="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  ></path>
+                </svg>
+              </button>
             </div>
-            <button onclick={startEditingTitle} aria-label="Edit titles">
-              <svg
-                class="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                ></path>
-              </svg>
-            </button>
+            <!-- Result video preview and download buttons -->
+            {#if selectedProject.progressStep === "complete" && selectedProject.progressResult}
+              <div class="flex items-center gap-2 ms-5">
+                <button
+                  onclick={() => previewResultVideo(selectedProject.id)}
+                  class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-100 hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  aria-label="Preview result video"
+                >
+                  <div class="relative">
+                    <svg
+                      class="h-5 w-5 text-gray-600"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+                </button>
+                <button
+                  onclick={() => downloadResultVideo(selectedProject.id)}
+                  class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-100 hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  aria-label="Download result video"
+                >
+                  <svg
+                    class="h-5 w-5 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    ></path>
+                  </svg>
+                </button>
+                <button
+                  onclick={() => downloadResultVideo(selectedProject.id)}
+                  class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-100 hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  aria-label="Download result video"
+                >
+                  <svg
+                    class="h-5 w-5 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
+            {/if}
           </div>
         {/if}
         <div class="flex items-center gap-2">
           <p class="text-gray-600">{selectedProject.name}</p>
         </div>
-        <!-- todo: PLACE folder relatedto AIV_VAULT_FOLDER of selectedProject here -->
+        <!-- Project folder and progress status -->
+        <div class="mt-2">
+          <p class="text-sm text-gray-500">
+            Project Folder: {selectedProject.name}
+          </p>
+          {#if selectedProject.progressStep}
+            <div class="mt-2">
+              <span class="text-sm font-medium">Status: </span>
+              <span
+                class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  selectedProject.progressStep === "complete"
+                    ? "bg-green-100 text-green-800"
+                    : selectedProject.progressStep === "error"
+                      ? "bg-red-100 text-red-800"
+                      : selectedProject.progressStep === "running"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-blue-100 text-blue-800"
+                }`}
+              >
+                {selectedProject.progressStep}
+              </span>
+            </div>
+          {/if}
+        </div>
       </div>
       <div class="flex gap-2">
         <button

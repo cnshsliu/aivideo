@@ -2,6 +2,9 @@ import { sequence } from "@sveltejs/kit/hooks";
 import * as auth from "$lib/server/auth";
 import type { Handle } from "@sveltejs/kit";
 import { paraglideMiddleware } from "$lib/paraglide/server";
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const handleParaglide: Handle = ({ event, resolve }) =>
   paraglideMiddleware(event.request, ({ request, locale }) => {

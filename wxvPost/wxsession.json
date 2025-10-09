@@ -1,0 +1,115 @@
+{
+  "cookies": [
+    {
+      "name": "sessionid",
+      "value": "BgAAbyoYELO8pmdBZ8As%2BrTx4xxX%2BC5uBv5%2BUDHWgyAER4bmP9G%2F1vMMvXCNy9zXr7KanfdprVE2DBYl81gUKXjqi3Ap7SEAe%2BA5JtX5bODF",
+      "domain": "channels.weixin.qq.com",
+      "path": "/",
+      "expires": 1794592729.518434,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "wxuin",
+      "value": "2285518668",
+      "domain": "channels.weixin.qq.com",
+      "path": "/",
+      "expires": 1794592729.518543,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://channels.weixin.qq.com",
+      "localStorage": [
+        {
+          "name": "finder_uin",
+          "value": ""
+        },
+        {
+          "name": "__ml::hb_ts",
+          "value": "1760033306755"
+        },
+        {
+          "name": "__ml::page_e31af9b8-c025-4707-a67f-df6473b20111",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"4ba37b08-32a9-4ad2-996f-1127e39fa1c1\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_02cde708-e503-48c1-ab40-c4f25721aced",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"51f25af6-adc5-447f-b6a8-22ea9b77366a\",\"step\":1}"
+        },
+        {
+          "name": "__ml::aid",
+          "value": "\"962380b2-c88f-4ffc-8c90-12bf5b40b87f\""
+        },
+        {
+          "name": "__rx::aid",
+          "value": "\"962380b2-c88f-4ffc-8c90-12bf5b40b87f\""
+        },
+        {
+          "name": "__ml::page_c24c8d1b-6fbc-41fd-a243-340f45646959",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"fc533c9c-60a4-447f-b8f2-8c31fefd0b1b\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page",
+          "value": "[\"936937d4-fbbe-431a-8b2a-90229711430b\",\"c8700f64-afe8-41b3-9b7b-b01666ef8b69\",\"8e4d9801-7228-4a9b-9110-922a2891ea01\",\"8876eaf8-5b90-46a6-bff7-f9d417aa44ac\",\"71a7b0ba-3a39-490b-850b-954fe3531092\",\"e31af9b8-c025-4707-a67f-df6473b20111\",\"4ea59d21-1c4c-46d0-b3cf-787463cc677e\",\"c24c8d1b-6fbc-41fd-a243-340f45646959\",\"02cde708-e503-48c1-ab40-c4f25721aced\"]"
+        },
+        {
+          "name": "finder_login_token",
+          "value": ""
+        },
+        {
+          "name": "__ml::page_71a7b0ba-3a39-490b-850b-954fe3531092",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"e6ffbf36-10d8-4aeb-a4b1-3b538fbca758\",\"step\":1}"
+        },
+        {
+          "name": "finder_username",
+          "value": "v2_060000231003b20faec8c7e18e1bc4d6cd04ef3cb0770e5e21491fe1f0b105a423f03db5bbf1@finder"
+        },
+        {
+          "name": "_finger_print_device_id",
+          "value": "6992caedf6de1d2846e3f52cf925f909"
+        },
+        {
+          "name": "__ml::page_4ea59d21-1c4c-46d0-b3cf-787463cc677e",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"04b8b413-fd39-43ab-b9b6-63378d3d3031\",\"step\":1}"
+        },
+        {
+          "name": "MICRO_VISITED_NAME",
+          "value": "{\"content\":3}"
+        },
+        {
+          "name": "__ml::page_8876eaf8-5b90-46a6-bff7-f9d417aa44ac",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"499c1e0d-4ddd-404c-9f7f-4851e72082bb\",\"step\":1}"
+        },
+        {
+          "name": "UvFirstReportLocalKey",
+          "value": "1760025600000"
+        },
+        {
+          "name": "__ml::page_c8700f64-afe8-41b3-9b7b-b01666ef8b69",
+          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"ae4c29eb-bb34-4043-9aeb-1b28672cddeb\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_8e4d9801-7228-4a9b-9110-922a2891ea01",
+          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"fa73e146-f4f0-4fa7-b98a-1c2a944cc863\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_936937d4-fbbe-431a-8b2a-90229711430b",
+          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"df0f6bda-e57e-4ff9-a24f-f64d295d3fa8\",\"step\":1}"
+        },
+        {
+          "name": "finder_ua_report_data",
+          "value": "{\"browser\":\"Chrome\",\"browserVersion\":\"141.0.0.0\",\"engine\":\"Webkit\",\"engineVersion\":\"537.36\",\"os\":\"Mac OS X\",\"osVersion\":\"10.15.7\",\"device\":\"desktop\",\"darkmode\":0}"
+        },
+        {
+          "name": "finder_route_meta",
+          "value": "micro.content/post/create;index;1;1760033309656"
+        }
+      ]
+    }
+  ]
+}

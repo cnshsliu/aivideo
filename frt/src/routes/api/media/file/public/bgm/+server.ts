@@ -3,17 +3,17 @@ import { readdirSync, statSync } from "fs";
 import { join } from "path";
 
 // Path to the project's bgm folder
-const BGM_PATH = join(process.cwd(), "..", "bgm");
+const BGM_PATH = join(process.env.AIV_VAULT_FOLDER || process.cwd(), "public", "bgm");
 
 export async function GET() {
   try {
     console.log("🎵 [BGM API] Listing BGM files from:", BGM_PATH);
-    
+
     // Ensure directory exists
     try {
       const files = readdirSync(BGM_PATH);
       console.log("📄 [BGM API] Files found:", files);
-      
+
       const bgmFiles = files
         .filter((file) => {
           const ext = file.split(".").pop()?.toLowerCase() || "";
@@ -23,7 +23,7 @@ export async function GET() {
           try {
             const filePath = join(BGM_PATH, file);
             const stats = statSync(filePath);
-            
+
             return {
               name: file,
               size: stats.size,

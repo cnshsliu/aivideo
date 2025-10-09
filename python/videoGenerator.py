@@ -100,6 +100,7 @@ class VideoGenerator:
             if file_path.suffix.lower() in media_extensions:
                 # Check for special files
                 if file_path.stem.lower().startswith("start"):
+                    self.logger.info(f"Found start file: {file_path.name}")
                     if not self.start_file or file_path.name < self.start_file.name:
                         self.start_file = file_path
                 elif file_path.stem.lower().startswith(("closing", "close")):
@@ -107,6 +108,8 @@ class VideoGenerator:
                         self.closing_file = file_path
                 else:
                     all_files.append(file_path)
+
+        self.logger.info(f"Finaly start file {self.start_file}")
 
         # Sort media files according to the specified method
         if self.args.sort == "alphnum":
@@ -208,11 +211,9 @@ class VideoGenerator:
                 )
 
                 # Resize the clip
-                print("HERE1")
                 scaled_clip = clip.with_effects(
                     [vfx.Resize(new_size=(scaled_width, scaled_height))]
                 )
-                print("HERE2")
 
                 # Crop from center to target dimensions
                 x_center = scaled_width // 2
@@ -1702,7 +1703,7 @@ class VideoGenerator:
             )
 
         # Write output file
-        output_file = self.project_folder / "output.mp4"
+        output_file = self.project_folder / "output" / "output.mp4"
         self.logger.info(f"Writing video to: {output_file}")
 
         # Progress tracking for video writing using file size monitoring

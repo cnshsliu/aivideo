@@ -111,17 +111,28 @@ async function prepareAndRunGeneration(theProject: Project, projectPath: string)
     if (materials.length > 0) {
       const mediaDir = path.join(projectPath, "media");
       await fs.mkdir(mediaDir, { recursive: true });
-      
+
+      console.log("VAULT ENV VLAUE", process.env.AIV_VAULT_FOLDER);
       for (const mat of materials) {
         const vaultPath = process.env.AIV_VAULT_FOLDER || "./vault";
         const sourcePath = path.join(vaultPath, mat.relativePath);
-        const destPath = path.join(mediaDir, mat.fileName);
-        
+
+        // Get file extension from source file
+        const sourceExt = path.extname(mat.fileName);
+
+        // Use alias as filename, removing any existing extension and adding source file's extension
+        let destFileName = mat.alias || mat.fileName;
+        if (path.extname(destFileName) !== sourceExt) {
+          destFileName = path.basename(destFileName, path.extname(destFileName)) + sourceExt;
+        }
+
+        const destPath = path.join(mediaDir, destFileName);
+
         try {
           await fs.copyFile(sourcePath, destPath);
-          console.log("📁 [VIDEO GENERATE] Copied material:", mat.fileName);
+          console.log("📁 [VIDEO GENERATE] Copied material:", destFileName);
         } catch (copyErr) {
-          console.error("❌ [VIDEO GENERATE] Error copying material:", mat.fileName, copyErr);
+          console.error("❌ [VIDEO GENERATE] Error copying material:", destFileName, copyErr);
         }
       }
     }
@@ -194,15 +205,16 @@ function composeCommand(project: Project, projectPath: string): string {
 
   // Add background music
   if (project.bgmFile) {
-    command += ` --mp3 "${project.bgmFile}"`;
+    command += ` --mp3 "${path.join(process.env.AIV_VAULT_FOLDER || "./vault", "public", "bgm", project.bgmFile)}"`;
   }
 
   if (project.genSubtitle) {
     command += ` --gen-subtitle`;
+  } else {
+    const staticSubtitlePath = path.join(projectPath, "static_subtitle.txt");
+    command += ` --text "${staticSubtitlePath}"`;
   }
   // Add text file path
-  const textPath = path.join(projectPath, "prompt", "prompt.md");
-  command += ` --text "${textPath}"`;
 
   const generated_audio_mp3_file = path.join(projectPath, "generated_audio.mp3");
   // Add voice generation
@@ -245,6 +257,7 @@ async function executeCommandAndLog(command: string, logPath: string, projectId:
     const mainDir = process.env.PYTHON_GEN_DIR || "/Users/lucas/dev/aivideo/python";
     console.log("📂 [VIDEO GENERATE] main.py is in:", mainDir);
 
+
     // Use the conda Python interpreter directly
     const child = spawn(cmd, cleanArgs, {
       cwd: mainDir, // Python directory where main.py is located
@@ -255,13 +268,13 @@ async function executeCommandAndLog(command: string, logPath: string, projectId:
     child.stderr.pipe(logStream);
 
     // Also log to console
-    child.stdout.on('data', (data) => {
-      console.log(`[PYTHON STDOUT] ${data}`);
-    });
-
-    child.stderr.on('data', (data) => {
-      console.log(`[FYTHON STDERR] ${data}`);
-    });
+    // child.stdout.on('data', (data) => {
+    //   console.log(`[PYTHON STDOUT] ${data}`);
+    // });
+    //
+    // child.stderr.on('data', (data) => {
+    //   console.log(`[FYTHON STDERR] ${data}`);
+    // });
 
 
     // Handle process completion
