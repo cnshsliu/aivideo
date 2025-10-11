@@ -95,9 +95,9 @@ async function prepareAndRunGeneration(theProject: Project, projectPath: string)
       console.log("📝 [VIDEO GENERATE] Prompt file created:", promptPath);
     }
 
-    // 2.2 Copy project.static_subtitle to PROJ_DIR/static_subtitle.txt
+    // 2.2 Copy project.static_subtitles to PROJ_DIR/static_subtitles.txt
     if (theProject.staticSubtitle && theProject.staticSubtitle!.trim()) {
-      const staticSubtitlePath = path.join(projectPath, "static_subtitle.txt");
+      const staticSubtitlePath = path.join(projectPath, "subtitle", "static_subtitles.txt");
       await fs.writeFile(staticSubtitlePath, theProject.staticSubtitle!.trim());
       console.log("📝 [VIDEO GENERATE] Static subtitle file created:", staticSubtitlePath);
     }
@@ -138,6 +138,7 @@ async function prepareAndRunGeneration(theProject: Project, projectPath: string)
     }
 
     // 2.4 Compose command string
+    debugger;
     const command = composeCommand(theProject, projectPath);
     console.log("🔧 [VIDEO GENERATE] Composed command:", command);
 
@@ -211,7 +212,7 @@ function composeCommand(project: Project, projectPath: string): string {
   if (project.genSubtitle) {
     command += ` --gen-subtitle`;
   } else {
-    const staticSubtitlePath = path.join(projectPath, "static_subtitle.txt");
+    const staticSubtitlePath = path.join(projectPath, "subtitle", "static_subtitles.txt");
     command += ` --text "${staticSubtitlePath}"`;
   }
   // Add text file path

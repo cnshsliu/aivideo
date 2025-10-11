@@ -62,6 +62,8 @@ export async function PUT({ params, request, cookies }) {
       name,
       prompt,
       staticSubtitle,
+      desc,
+      brief,
       keepTitle,
       addTimestampToTitle,
       titleFont,
@@ -130,6 +132,8 @@ export async function PUT({ params, request, cookies }) {
     // Update project
     console.log("prompt=", prompt);
     console.log("staticSubtitle=", staticSubtitle);
+    console.log("desc=", desc);
+    console.log("brief=", brief);
     console.log("video_title=", video_title);
     console.log("keepTitle=", keepTitle);
     console.log("addTimestampToTitle=", addTimestampToTitle);
@@ -154,6 +158,8 @@ export async function PUT({ params, request, cookies }) {
         name,
         prompt,
         staticSubtitle,
+        desc,
+        brief,
         keepTitle,
         addTimestampToTitle,
         titleFont,

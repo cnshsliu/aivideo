@@ -373,7 +373,7 @@
 
   {#if user}
     <!-- Main Tabs -->
-    <div class="mb-6">
+    <div class="mb-6" id="main-tab">
       <div class="flex rounded-lg bg-gray-100/50 p-1">
         <button
           class="flex-1 rounded-md px-4 py-2 transition-all duration-200"

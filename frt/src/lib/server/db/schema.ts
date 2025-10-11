@@ -101,6 +101,8 @@ export const project = pgTable("project", {
     .references(() => user.id),
   prompt: text("prompt"),
   staticSubtitle: text("static_subtitle"),
+  desc: text("desc"),
+  brief: text("brief"),
   keepTitle: boolean("keep_title").default(true),
   openAfterGeneration: boolean("open_after_generation").default(true),
   addTimestampToTitle: boolean("add_timestamp_to_title").default(false),

@@ -1352,9 +1352,18 @@ class VideoGenerator:
             return False
 
     def create_final_video(self):
-        """Create the final video with proper workflow: generate content → create video → trim to audio → add audio → prepend start → append end"""
+        """Create the final video with proper workflow: generate content → create video → trim to audio → prepend start → append end"""
         self.logger.info("Starting video generation process...")
-        print("🎬 Starting video generation process...")
+
+        # Check if --gen1 is specified - only generate subtitles and output to console
+        if getattr(self.args, "gen1", False):
+            self.logger.info(
+                "--gen1 specified: Generating only subtitles and outputting to console..."
+            )
+
+            # Generate subtitles using the same logic as normal generation
+            self._generate_static_subtitles_only()
+            return
 
         # Step 1: Generate subtitles and audio
         self.logger.info("Step 1: Generating subtitles and audio...")
@@ -1410,19 +1419,19 @@ class VideoGenerator:
                 if self.subtitle_processor.load_existing_subtitles(self):
                     self.logger.info("Using existing generated subtitles")
                 else:
-                    # If no existing generated subtitles, try static files
-                    if self.subtitle_processor.load_static_subtitles():
-                        self.logger.info("Using static subtitle files")
-                    else:
-                        raise FileNotFoundError(
-                            "No subtitles found. Use --gen-subtitle to generate subtitles."
-                        )
+                    raise FileNotFoundError(
+                        "No subtitles found. Use --gen-subtitle to generate subtitles."
+                    )
             else:
                 # Generate new subtitles
                 self.logger.info("Generating new subtitles...")
                 self.voice_subtitles, self.display_subtitles = (
                     self.llm_manager.generate_subtitles(
-                        self.args, self.prompt_folder, self.subtitle_folder, self.logger
+                        self.args,
+                        self.prompt_folder,
+                        self.subtitle_folder,
+                        self.logger,
+                        False,
                     )
                 )
                 # Use display subtitles for the main workflow (backward compatibility)
@@ -1849,6 +1858,17 @@ class VideoGenerator:
         self._show_video_length(output_file)
         if self.args.open:
             os.system(f"open {output_file}")
+
+    def _generate_static_subtitles_only(self):
+        """Generate only subtitles and output to console, skipping video creation"""
+        self.logger.info("Generating static subtitles...")
+        self.voice_subtitles, self.display_subtitles = (
+            self.llm_manager.generate_subtitles(
+                self.args, self.prompt_folder, self.subtitle_folder, self.logger, True
+            )
+        )
+        # Output only the subtitles to stdout, no logging
+        print("\n".join(self.voice_subtitles), flush=True)
 
     def _show_video_length(self, video_path):
         """Show the duration of the generated video file."""

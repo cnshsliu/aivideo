@@ -1,5 +1,6 @@
 import { chromium, Browser, Page, BrowserContext } from 'playwright';
 import * as fs from "node:fs";
+import * as path from "node:path";
 
 interface PlaywrightClientConfig {
   headless?: boolean;
@@ -74,7 +75,7 @@ class PlaywrightClient {
     console.log("Storage state saved.");
   }
 
-  async postVideo(videoPath: string, title: string, description: string): Promise<void> {
+  async postVideo(videoPath: string, desc: string, brief: string): Promise<void> {
     if (!this.page) throw new Error("Page not initialized.");
     // Upload video file
     const fileInput = this.page.locator('input[type="file"]');
@@ -84,12 +85,12 @@ class PlaywrightClient {
       buffer: fs.readFileSync(videoPath)
     });
     await this.saveStorageState();
-    // Fill description in contenteditable div
+    // Fill desc in contenteditable div
     const descInput = this.page.locator('[contenteditable][data-placeholder="添加描述"]');
-    await descInput.fill(title);
+    await descInput.fill(desc);
     // Fill short title in input field
     const titleInput = this.page.locator('input[placeholder*="概括视频主要内容"]');
-    await titleInput.fill(description);
+    await titleInput.fill(brief);
     // Check the original declaration checkbox
     const originalCheckbox = this.page.getByRole('checkbox', { name: '声明后，作品将展示原创标记，有机会获得广告收入。' });
     await originalCheckbox.check();
@@ -105,20 +106,69 @@ class PlaywrightClient {
     await this.saveStorageState();
 
     // Click submit button
-    let submitButton;
-    while (true) {
-      submitButton = this.page.getByRole('button', { name: '发表' });
-      if (submitButton && !(await submitButton.evaluate(button => button.classList.contains('weui-desktop-btn_disabled')))) break;
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    if (submitButton) await submitButton.click();
-    await this.saveStorageState();
+    // let submitButton;
+    // while (true) {
+    //   submitButton = this.page.getByRole('button', { name: '发表' });
+    //   if (submitButton && !(await submitButton.evaluate(button => button.classList.contains('weui-desktop-btn_disabled')))) break;
+    //   await new Promise(resolve => setTimeout(resolve, 1000));
+    // }
+    // if (submitButton) await submitButton.click();
+    // await this.saveStorageState();
     console.log("Video post submitted");
   }
 }
 
 
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const params: { [key: string]: string } = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('--')) {
+      const key = arg.slice(2);
+      const value = args[i + 1];
+      if (value && !value.startsWith('--')) {
+        params[key] = value;
+        i++; // Skip the next arg as it's the value
+      }
+    }
+  }
+
+  return params;
+}
+
+function loadJsonConfig(jsonPath: string) {
+  try {
+    if (fs.existsSync(jsonPath)) {
+      const data = fs.readFileSync(jsonPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.warn(`Warning: Could not load JSON config from ${jsonPath}:`, error);
+  }
+  return {};
+}
+
 async function main() {
+  // Parse command line arguments
+  const cliArgs = parseArgs();
+
+  // Load JSON config (relative to current working directory)
+  const jsonConfigPath = path.join(process.cwd(), '..', 'frt', 'sample-post-data.json');
+  const jsonConfig = loadJsonConfig(jsonConfigPath);
+
+  // Determine parameters with priority: CLI args > JSON > defaults
+  const videoPath = cliArgs.video || jsonConfig.video || "/Users/lucas/dev/wxvPost/demo.mp4";
+  const desc = cliArgs.desc || jsonConfig.desc || "学习发表视频号";
+  const brief = cliArgs.brief || jsonConfig.brief || "#学习  #视频号";
+
+  console.log("Using parameters:");
+  console.log(`  Video: ${videoPath}`);
+  console.log(`  Desc: ${desc}`);
+  console.log(`  Title: ${brief}`);
+
+
   const client = new PlaywrightClient();
   try {
     await client.connect();
@@ -141,7 +191,7 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 5000));
     let isSessionOkay2 = await client.isSessionValid(["sessionid", "wxuin"]);
     await client.saveStorageState();
-    await client.postVideo("/Users/lucas/dev/wxvPost/demo.mp4", "学习发表视频号", "#学习  #视频号");
+    await client.postVideo(videoPath, desc, brief);
     await client.saveStorageState();
 
   } catch (error) {

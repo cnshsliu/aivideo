@@ -10,16 +10,24 @@ import argparse
 import logging
 from pathlib import Path
 from datetime import datetime
-from dotenv import load_dotenv
 from typing import Optional, Dict, Any
-import dashscope
 import importlib.util
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (optional)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available, continue without it
+    pass
 
-# Configure APIs
-dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
+# Configure APIs (optional)
+try:
+    import dashscope
+    dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
+except ImportError:
+    # dashscope not available, continue without it
+    pass
 
 # Enhanced title visibility
 ENHANCED_TITLES_AVAILABLE = (
@@ -47,13 +55,15 @@ class Config:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = logs_dir / f"video_generation_{timestamp}.log"
 
+        # For --gen1 mode, only log to file, not stdout
+        handlers = [logging.FileHandler(log_file, encoding="utf-8")]
+        if not getattr(self.args, "gen1", False):
+            handlers.append(logging.StreamHandler(sys.stdout))
+
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s - %(levelname)s - %(message)s",
-            handlers=[
-                logging.FileHandler(log_file, encoding="utf-8"),
-                logging.StreamHandler(sys.stdout),
-            ],
+            handlers=handlers,
         )
 
         self.logger = logging.getLogger(__name__)
@@ -166,6 +176,12 @@ def parse_args():
         action="store_true",
         default=False,
         help="Generate voice using Volcengine TTS",
+    )
+    parser.add_argument(
+        "--gen1",
+        action="store_true",
+        default=False,
+        help="Generate only subtitles and output to console",
     )
     parser.add_argument(
         "--llm-provider",

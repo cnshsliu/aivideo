@@ -8,6 +8,8 @@
     updatedAt: string;
     prompt?: string;
     staticSubtitle?: string;
+    desc?: string;
+    brief?: string;
     keepTitle?: boolean;
     addTimestampToTitle?: boolean;
     titleFont?: string;
@@ -71,6 +73,7 @@
   let editingAliasValue = $state("");
   let loadingMaterials = $state(false);
   let projectMaterials = $state<Material[]>([]);
+  let generatingStaticSubtitles = $state(false);
 
   // Computed property to sort project materials
   let sortedProjectMaterials = $derived(
@@ -151,6 +154,8 @@
       loadProjectMaterials();
       staticSubtitleContent = selectedProject.staticSubtitle || "";
       promptContent = selectedProject.prompt || "";
+      descContent = selectedProject.desc || "";
+      briefContent = selectedProject.brief || "";
       // Initialize title settings from selectedProject
       keepTitle = selectedProject.keepTitle ?? true;
       addTimestampToTitle = selectedProject.addTimestampToTitle ?? false;
@@ -181,6 +186,8 @@
   let editedTitle = $state("");
   let staticSubtitleContent = $state(selectedProject.staticSubtitle || "");
   let promptContent = $state(selectedProject.prompt || "");
+  let descContent = $state(selectedProject.desc || "");
+  let briefContent = $state(selectedProject.brief || "");
   // Title settings state variables
   let keepTitle = $state(selectedProject.keepTitle ?? true);
   let addTimestampToTitle = $state(
@@ -359,6 +366,8 @@
         const project = await response.json();
         promptContent = project.prompt || "";
         staticSubtitleContent = project.staticSubtitle || "";
+        descContent = project.desc || "";
+        briefContent = project.brief || "";
         onUpdateProject(project);
       } else {
         alert("Failed to load content");
@@ -371,6 +380,9 @@
 
   async function saveContent() {
     try {
+      // genSubttile用于控制python命令行运行时，是否生成字幕
+      // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
+      genSubtitle=false;
       const response = await fetch(`/api/projects/${selectedProject.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -380,6 +392,8 @@
           name: selectedProject.name,
           prompt: promptContent,
           staticSubtitle: staticSubtitleContent,
+          desc: descContent,
+          brief: briefContent,
           // Include title settings in save
           keepTitle,
           addTimestampToTitle,
@@ -409,6 +423,8 @@
           ...selectedProject,
           prompt: promptContent,
           staticSubtitle: staticSubtitleContent,
+          desc: descContent,
+          brief: briefContent,
           video_title: videoTitle,
           // Update project with new title settings
           keepTitle,
@@ -580,13 +596,47 @@
       name: "Result Video",
     });
   }
+
+  // Function to generate static subtitles
+  async function generateStaticSubtitles(): Promise<void> {
+    // genSubttile用于控制python命令行运行时，是否生成字幕
+    // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
+    genSubtitle=false;
+    generatingStaticSubtitles = true;
+    try {
+      const response = await fetch(`/api/projects/${selectedProject.id}/generate-static-subtitles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folder: selectedProject.name,
+        }),
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Static subtitles generated:", data);
+        // Reload content to get updated server state with generated subtitles
+        await loadContent();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || "Failed to generate static subtitles");
+      }
+    } catch (err) {
+      alert("Network error");
+      console.error(err);
+    } finally {
+      generatingStaticSubtitles = false;
+    }
+  }
 </script>
 
 <!-- Project Details Tab -->
-<div class="space-y-6">
+<div class="relative">
   <!-- Project Header -->
   <div
-    class="rounded-2xl border border-white/20 bg-white/60 p-6 shadow-lg backdrop-blur-sm"
+    id="project-header"
+    class="sticky top-0 rounded-2xl border border-white/20 bg-white/60 p-6 shadow-lg backdrop-blur-sm z-10"
   >
     <div class="flex items-center justify-between">
       <div>
@@ -746,7 +796,11 @@
           </button>
         </div>
         <button
-          onclick={onGenerateVideo}
+          onclick={async ()=>{
+          // genSubttile用于控制python命令行运行时，是否生成字幕
+          // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
+          genSubtitle=false;
+          await saveContent(); onGenerateVideo();}}
           disabled={generatingVideo}
           class="rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-white transition-all duration-200 hover:from-purple-600 hover:to-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -774,7 +828,6 @@
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold">Prompt Editor</h3>
       </div>
-      prompt: {promptContent}
       <textarea
         bind:value={promptContent}
         placeholder="Enter your video generation prompt..."
@@ -784,7 +837,7 @@
         This prompt will be used to generate subtitles for your video.
       </p>
       <!-- Generate Subtitles -->
-      <div class="flex items-center justify-between">
+      <!--div class="flex items-center justify-between">
         <span class="text-sm font-medium text-gray-700">Generate Subtitles</span
         >
         <button
@@ -797,7 +850,7 @@
             class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${genSubtitle ? "translate-x-6" : "translate-x-1"}`}
           ></span>
         </button>
-      </div>
+      </div-->
 
       <!-- Generate Voice -->
       <div class="flex items-center justify-between">
@@ -843,7 +896,26 @@
           class="text-xl font-semibold border rounded px-2 py-1 w-full"
         />
       </div>
-      <h3 class="mt-5 mb-4 text-lg font-semibold">Static Subtitle</h3>
+      <div class="flex items-center justify-between my-2">
+        <h3 class="text-lg font-semibold">Subtitle</h3>
+        <button
+          id="btn-gen-static-subtitles"
+          class="rounded-lg bg-gray-500 px-4 py-2 text-white transition-all duration-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={generatingStaticSubtitles}
+          onclick={generateStaticSubtitles}
+        >
+          {#if generatingStaticSubtitles}
+            <div class="flex items-center space-x-2">
+              <div
+                class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+              ></div>
+              <span>Generating...</span>
+            </div>
+          {:else}
+            Generate
+          {/if}
+        </button>
+      </div>
       <textarea
         bind:value={staticSubtitleContent}
         placeholder="Enter static subtitle text (optional)..."
@@ -852,8 +924,22 @@
       <p class="mt-2 text-sm text-gray-500">
         If provided, this will override the generated subtitles.
       </p>
+
+      <h3 class="mt-5 mb-4 text-lg font-semibold">Video Description</h3>
+      <textarea
+        bind:value={descContent}
+        placeholder="Enter video description..."
+        class="h-32 w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+      ></textarea>
+
+      <h3 class="mt-5 mb-4 text-lg font-semibold">Brief Overview</h3>
+      <textarea
+        bind:value={briefContent}
+        placeholder="Enter brief overview..."
+        class="h-32 w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+      ></textarea>
     </div>
-    <!-- Tab Navigation -->
+    <!-- Settings Panel -->
     <div
       class="rounded-2xl border border-white/20 bg-white/60 p-6 shadow-lg backdrop-blur-sm"
     >

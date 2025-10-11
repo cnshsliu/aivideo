@@ -78,24 +78,27 @@ class SubtitleProcessor:
             return []
         display_subtitles = []
         subtitle_mapping = []  # Maps display subtitle index to original voice subtitle index
-        # Ensure voice subtitles are properly formatted (with periods)
-        cleaned_voice_subtitles = []
-        for subtitle in raw_subtitles:
-            cleaned_subtitle = self._clean_and_validate_subtitle(subtitle)
-            cleaned_voice_subtitles.append(cleaned_subtitle)
-        # Update voice subtitles with cleaned versions
-        self.voice_subtitles = cleaned_voice_subtitles
-        # Generate display subtitles (without trailing periods)
+
+        # Set voice subtitles to raw subtitles (preserve original punctuation for voice generation)
+        self.voice_subtitles = raw_subtitles
+
+        # Generate display subtitles (without ending punctuation only)
         for idx, voice_subtitle in enumerate(self.voice_subtitles):
-            # For display subtitles, remove trailing periods
-            display_subtitle = self._remove_trailing_period(voice_subtitle)
+            # For display subtitles, remove ending punctuation (Chinese period, exclamation mark, question mark, comma)
+            if voice_subtitle.endswith(("。", "！", "？", "，")):
+                display_subtitle = voice_subtitle[:-1]
+            else:
+                display_subtitle = voice_subtitle
             # Split into multiple lines if still too long (fallback)
             if self._needs_splitting(voice_subtitle):
                 chunks = self._split_long_subtitle(voice_subtitle)
-                # Remove trailing periods from display chunks
-                display_chunks = [
-                    self._remove_trailing_period(chunk) for chunk in chunks
-                ]
+                # Remove ending punctuation from display chunks
+                display_chunks = []
+                for chunk in chunks:
+                    if chunk.endswith(("。", "！", "？", "，")):
+                        display_chunks.append(chunk[:-1])
+                    else:
+                        display_chunks.append(chunk)
                 display_subtitles.extend(display_chunks)
                 # Each chunk maps to the same original subtitle
                 subtitle_mapping.extend([idx] * len(chunks))
@@ -364,10 +367,10 @@ class SubtitleProcessor:
                 print(f"Error loading dual text subtitles: {e}")
 
         # Fallback to old generated_subtitles.txt
-        subtitles_file = self.subtitle_folder / "generated_subtitles.txt"
-        if subtitles_file.exists():
+        voice_file = self.subtitle_folder / "voice_subtitles.txt"
+        if voice_file.exists():
             try:
-                with open(subtitles_file, "r", encoding="utf-8") as f:
+                with open(voice_file, "r", encoding="utf-8") as f:
                     content = f.read().strip()
                     if content:
                         raw_subtitles = [
@@ -382,9 +385,6 @@ class SubtitleProcessor:
                             )
                             self.subtitles = self.display_subtitles
 
-                            # Save both versions for future use
-                            with open(voice_file, "w", encoding="utf-8") as f:
-                                f.write("\n".join(self.voice_subtitles))
                             with open(display_file, "w", encoding="utf-8") as f:
                                 f.write("\n".join(self.display_subtitles))
 
@@ -419,12 +419,14 @@ class SubtitleProcessor:
                     self.voice_subtitles = [
                         line.strip() for line in content.split("\n") if line.strip()
                     ]
-
+                    self.logger.info("voice_subtitles")
+                    self.logger.info(self.voice_subtitles)
                     # Create display-optimized subtitles (without unnecessary punctuation)
                     self.display_subtitles = self._optimize_subtitles(
                         vg, self.voice_subtitles
                     )
-
+                    self.logger.info("display_subtitles")
+                    self.logger.info(self.display_subtitles)
                     # Use display subtitles for main workflow
                     self.subtitles = self.display_subtitles
 
@@ -453,75 +455,3 @@ class SubtitleProcessor:
             print(f"Damn, failed to read text file {text_file}: {e}")
 
         return False
-
-    def load_static_subtitles(self):
-        """Load static subtitles from .txt files (excluding generated_subtitles.txt)"""
-        self.subtitle_folder = self.vg.subtitle_folder
-        if not self.subtitle_folder:
-            return False
-
-        txt_files = list(self.subtitle_folder.glob("*.txt"))
-        # Skip generated_subtitles.txt and also skip voice/display files if they exist
-        txt_files = [
-            f
-            for f in txt_files
-            if f.name
-            not in [
-                "generated_subtitles.txt",
-                "voice_subtitles.txt",
-                "display_subtitles.txt",
-            ]
-        ]
-
-        if not txt_files:
-            return False
-
-        # Read all .txt files and combine their content
-        raw_subtitles = []
-        for txt_file in sorted(txt_files):
-            try:
-                with open(txt_file, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                    if content:
-                        # Split content by newlines for multiple subtitles
-                        lines = [
-                            line.strip() for line in content.split("\n") if line.strip()
-                        ]
-                        raw_subtitles.extend(lines)
-                        print(f"Loaded {len(lines)} subtitles from {txt_file.name}")
-            except Exception as e:
-                print(f"Damn, failed to read {txt_file}: {e}")
-                continue
-
-        if not raw_subtitles:
-            return False
-
-        # Store original subtitles for voice generation (with punctuation)
-        self.voice_subtitles = raw_subtitles
-
-        # Create display-optimized subtitles (without unnecessary punctuation)
-        self.display_subtitles = self._optimize_subtitles(self, raw_subtitles)
-
-        # Use display subtitles for the main workflow (backward compatibility)
-        self.subtitles = self.display_subtitles
-
-        print(
-            f"Loaded {len(self.voice_subtitles)} voice subtitles and created {len(self.display_subtitles)} display subtitles from static files"
-        )
-        self._log_subtitles("static files")
-
-        self.vg.voice_subtitles = self.voice_subtitles
-        self.vg.display_subtitles = self.display_subtitles
-        self.vg.subtitles = self.subtitles
-
-        # Save both versions
-        voice_file = self.subtitle_folder / "voice_subtitles.txt"
-        display_file = self.subtitle_folder / "display_subtitles.txt"
-
-        with open(voice_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(self.voice_subtitles))
-
-        with open(display_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(self.display_subtitles))
-
-        return True

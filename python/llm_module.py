@@ -28,7 +28,7 @@ class LLMManager:
         return self.config.get_llm_model_config(provider)
 
     def generate_subtitles(
-        self, args, prompt_folder: Path, subtitle_folder: Path, logger
+        self, args, prompt_folder: Path, subtitle_folder: Path, logger, genStatic
     ):
         """Generate subtitles using LLM"""
         logger.info("Generating subtitles using LLM...")
@@ -210,61 +210,70 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
             # Save both versions
             voice_file = subtitle_folder / "voice_subtitles.txt"
             display_file = subtitle_folder / "display_subtitles.txt"
+            static_file = subtitle_folder / "static_subtitles.txt"
 
-            with open(voice_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(voice_subtitles))
+            if genStatic:
+                with open(static_file, "w", encoding="utf-8") as f:
+                    f.write("\n".join(voice_subtitles))
+                logger.info(f"Generated {len(voice_subtitles)}  static subtitles")
 
-            with open(display_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(display_subtitles))
+            else:
+                with open(voice_file, "w", encoding="utf-8") as f:
+                    f.write("\n".join(voice_subtitles))
 
-            logger.info(
-                f"Generated {len(voice_subtitles)} voice subtitles and {len(display_subtitles)} display subtitles"
-            )
+                with open(display_file, "w", encoding="utf-8") as f:
+                    f.write("\n".join(display_subtitles))
+
+                logger.info(
+                    f"Generated {len(voice_subtitles)} voice subtitles and {len(display_subtitles)} display subtitles"
+                )
 
             if llm_config:
                 display_name = llm_config.get("display_name", "unknown")
-                print(
+                logger.info(
                     f"Generated {len(display_subtitles)} subtitles using {display_name}"
                 )
             else:
-                print(f"Generated {len(display_subtitles)} subtitles using {provider}")
+                logger.info(
+                    f"Generated {len(display_subtitles)} subtitles using {provider}"
+                )
 
             return voice_subtitles, display_subtitles
 
         except Exception as e:
-            print(f"Damn, subtitle generation failed: {e}")
+            logger.info(f"Damn, subtitle generation failed: {e}")
             error_str = str(e).lower()
             if any(
                 keyword in error_str
                 for keyword in ["api_key", "auth", "unauthorized", "invalid"]
             ):
-                print(
+                logger.info(
                     "This might be an API key issue. Please check your LITELLM_MASTER_KEY in .env file"
                 )
                 if llm_config and llm_config.get("env_key"):
-                    print(
+                    logger.info(
                         f"Also check {llm_config.get('env_key')} for {llm_config.get('display_name', 'unknown')}"
                     )
             elif "rate" in error_str or "limit" in error_str:
-                print("This might be a rate limit issue. Please try again later.")
+                logger.info("This might be a rate limit issue. Please try again later.")
             elif "connection" in error_str or "network" in error_str:
-                print(
+                logger.info(
                     "This might be a network connection issue. Make sure litellm server is running on localhost:4000"
                 )
             elif "model_not_found" in error_str or "does not exist" in error_str:
-                print(
+                logger.info(
                     f"This might be a model name issue. Check if {model_name} is available in your litellm config."
                 )
-            print(
+            logger.info(
                 "ERROR: LLM subtitle generation failed. Cannot continue without valid subtitles."
             )
-            print(f"Required environment variables for {provider}:")
-            print("- LITELLM_MASTER_KEY: Your litellm master key")
-            print(
+            logger.info(f"Required environment variables for {provider}:")
+            logger.info("- LITELLM_MASTER_KEY: Your litellm master key")
+            logger.info(
                 "- LITELLM_API_BASE_URL: litellm server URL (default: http://localhost:4000)"
             )
             if llm_config and llm_config.get("env_key"):
-                print(
+                logger.info(
                     f"- {llm_config.get('env_key')}: API key for {llm_config.get('display_name', 'unknown')}"
                 )
             else:
@@ -273,11 +282,10 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     if llm_config
                     else "unknown"
                 )
-                print(
+                logger.info(
                     f"- No additional API key needed for {display_name} (local model)"
                 )
-            print(
+            logger.info(
                 "Make sure litellm server is running: python ~/dev/litellm/litellm.py server"
             )
             sys.exit(1)
-

@@ -2,20 +2,20 @@
   "cookies": [
     {
       "name": "sessionid",
-      "value": "BgAAbyoYELO8pmdBZ8As%2BrTx4xxX%2BC5uBv5%2BUDHWgyAER4bmP9G%2F1vMMvXCNy9zXr7KanfdprVE2DBYl81gUKXjqi3Ap7SEAe%2BA5JtX5bODF",
+      "value": "BgAAVB7wpWnqPMUYhG94sNHL73YPaXAdw2a21aE9YU%2BHBMoAJmO3ZP9ReV48MID15HRKG6HrXQlg7zb95YdbJlQD2bF52hZeKRIqN9o%2Fgr%2BN",
       "domain": "channels.weixin.qq.com",
       "path": "/",
-      "expires": 1794592729.518434,
+      "expires": 1794726651.19557,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "wxuin",
-      "value": "2285518668",
+      "value": "3208175122",
       "domain": "channels.weixin.qq.com",
       "path": "/",
-      "expires": 1794592729.518543,
+      "expires": 1794726651.195634,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
@@ -31,39 +31,55 @@
         },
         {
           "name": "__ml::hb_ts",
-          "value": "1760033306755"
+          "value": "1760169452528"
         },
         {
-          "name": "__ml::page_e31af9b8-c025-4707-a67f-df6473b20111",
-          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"4ba37b08-32a9-4ad2-996f-1127e39fa1c1\",\"step\":1}"
+          "name": "__ml::page_69469653-33e6-4a75-b61c-569245c593b9",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"3b44a66b-2cc4-4602-a94e-b8c884e5c204\",\"step\":1}"
         },
         {
-          "name": "__ml::page_02cde708-e503-48c1-ab40-c4f25721aced",
-          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"51f25af6-adc5-447f-b6a8-22ea9b77366a\",\"step\":1}"
+          "name": "__ml::page_a1d1c741-bcc3-4edc-b6d2-c6001b27cd24",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"00576dc6-ed17-46c8-854f-dc83e711f576\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_343f1913-f03e-489d-9a45-49746ffb93b2",
+          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"d43baed4-3c96-40b0-a77e-0a48e60ffb3a\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_614b3395-7ce8-49e9-8dcf-2a2bd89d7532",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"aa2d63aa-1f68-4ba1-a424-9c9030667631\",\"step\":1}"
         },
         {
           "name": "__ml::aid",
-          "value": "\"962380b2-c88f-4ffc-8c90-12bf5b40b87f\""
+          "value": "\"4205076a-f93c-4661-8c38-abb6f39f48a6\""
         },
         {
           "name": "__rx::aid",
-          "value": "\"962380b2-c88f-4ffc-8c90-12bf5b40b87f\""
+          "value": "\"4205076a-f93c-4661-8c38-abb6f39f48a6\""
         },
         {
-          "name": "__ml::page_c24c8d1b-6fbc-41fd-a243-340f45646959",
-          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"fc533c9c-60a4-447f-b8f2-8c31fefd0b1b\",\"step\":1}"
+          "name": "__ml::page_9451417a-6bbb-48b5-83fa-4c6fd95827ba",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"eef81e11-2d43-46c8-8125-79388f50d25d\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_032f9700-07d4-42e5-9c7b-b7f5cb3cca03",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"2bbf4006-47e7-4f4d-af6c-b068c5d10c41\",\"step\":1}"
         },
         {
           "name": "__ml::page",
-          "value": "[\"936937d4-fbbe-431a-8b2a-90229711430b\",\"c8700f64-afe8-41b3-9b7b-b01666ef8b69\",\"8e4d9801-7228-4a9b-9110-922a2891ea01\",\"8876eaf8-5b90-46a6-bff7-f9d417aa44ac\",\"71a7b0ba-3a39-490b-850b-954fe3531092\",\"e31af9b8-c025-4707-a67f-df6473b20111\",\"4ea59d21-1c4c-46d0-b3cf-787463cc677e\",\"c24c8d1b-6fbc-41fd-a243-340f45646959\",\"02cde708-e503-48c1-ab40-c4f25721aced\"]"
+          "value": "[\"4502b319-3836-4528-89e2-7561c63f2de6\",\"343f1913-f03e-489d-9a45-49746ffb93b2\",\"606d5c90-301f-4ae6-8581-8543e442197e\",\"9fbb8165-305c-4232-93ee-6ff1aa12fc6c\",\"9dea3ec8-3c62-4edc-8ed0-6bbae9faa3b6\",\"614b3395-7ce8-49e9-8dcf-2a2bd89d7532\",\"69469653-33e6-4a75-b61c-569245c593b9\",\"032f9700-07d4-42e5-9c7b-b7f5cb3cca03\",\"9451417a-6bbb-48b5-83fa-4c6fd95827ba\",\"c397f634-4d03-439b-9974-d4da06e9e513\",\"704d918d-df5a-4e79-8eee-f884e7cc5e36\",\"f6b68bfa-fbdc-49ec-88e7-55e86cab5421\",\"a1d1c741-bcc3-4edc-b6d2-c6001b27cd24\",\"7bce0c6e-1533-4c57-95af-5168e128aaf9\"]"
         },
         {
-          "name": "finder_login_token",
-          "value": ""
+          "name": "__ml::page_c397f634-4d03-439b-9974-d4da06e9e513",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"8e468b14-9b9d-4418-a44c-5073b6bf7dd6\",\"step\":1}"
         },
         {
-          "name": "__ml::page_71a7b0ba-3a39-490b-850b-954fe3531092",
-          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"e6ffbf36-10d8-4aeb-a4b1-3b538fbca758\",\"step\":1}"
+          "name": "__ml::page_f6b68bfa-fbdc-49ec-88e7-55e86cab5421",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"b52792cc-9145-482c-9c20-5215cf7ce9cb\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_9fbb8165-305c-4232-93ee-6ff1aa12fc6c",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"fd5e4b01-d7ec-48c2-b042-70912ea96d87\",\"step\":1}"
         },
         {
           "name": "finder_username",
@@ -71,43 +87,47 @@
         },
         {
           "name": "_finger_print_device_id",
-          "value": "6992caedf6de1d2846e3f52cf925f909"
+          "value": "5825782ec6c4c011ee1e4407ede067dc"
         },
         {
-          "name": "__ml::page_4ea59d21-1c4c-46d0-b3cf-787463cc677e",
-          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"04b8b413-fd39-43ab-b9b6-63378d3d3031\",\"step\":1}"
+          "name": "__ml::page_7bce0c6e-1533-4c57-95af-5168e128aaf9",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"c8348e34-fbbe-4c99-a11d-709e19474789\",\"step\":1}"
         },
         {
           "name": "MICRO_VISITED_NAME",
-          "value": "{\"content\":3}"
+          "value": "{\"content\":6}"
         },
         {
-          "name": "__ml::page_8876eaf8-5b90-46a6-bff7-f9d417aa44ac",
-          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"499c1e0d-4ddd-404c-9f7f-4851e72082bb\",\"step\":1}"
+          "name": "__ml::page_9dea3ec8-3c62-4edc-8ed0-6bbae9faa3b6",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"5e243f3b-abb0-4d17-952e-724fb2f41265\",\"step\":1}"
         },
         {
           "name": "UvFirstReportLocalKey",
-          "value": "1760025600000"
+          "value": "1760112000000"
         },
         {
-          "name": "__ml::page_c8700f64-afe8-41b3-9b7b-b01666ef8b69",
-          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"ae4c29eb-bb34-4043-9aeb-1b28672cddeb\",\"step\":1}"
+          "name": "__ml::page_704d918d-df5a-4e79-8eee-f884e7cc5e36",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"e0f15f43-cdc1-418d-a34b-af340e33f154\",\"step\":1}"
         },
         {
-          "name": "__ml::page_8e4d9801-7228-4a9b-9110-922a2891ea01",
-          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"fa73e146-f4f0-4fa7-b98a-1c2a944cc863\",\"step\":1}"
+          "name": "__ml::page_4502b319-3836-4528-89e2-7561c63f2de6",
+          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"da3f772d-43b4-4474-bda9-7efdff8f1797\",\"step\":1}"
         },
         {
-          "name": "__ml::page_936937d4-fbbe-431a-8b2a-90229711430b",
-          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"df0f6bda-e57e-4ff9-a24f-f64d295d3fa8\",\"step\":1}"
+          "name": "FINDER_HELPER_REDIRECT_PATH",
+          "value": "/platform"
+        },
+        {
+          "name": "__ml::page_606d5c90-301f-4ae6-8581-8543e442197e",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"47c5a2ae-e1e2-4798-9c75-8dac20d83572\",\"step\":1}"
         },
         {
           "name": "finder_ua_report_data",
-          "value": "{\"browser\":\"Chrome\",\"browserVersion\":\"141.0.0.0\",\"engine\":\"Webkit\",\"engineVersion\":\"537.36\",\"os\":\"Mac OS X\",\"osVersion\":\"10.15.7\",\"device\":\"desktop\",\"darkmode\":0}"
+          "value": "{\"browser\":\"Chrome\",\"browserVersion\":\"129.0.0.0\",\"engine\":\"Webkit\",\"engineVersion\":\"537.36\",\"os\":\"Mac OS X\",\"osVersion\":\"10.15.7\",\"device\":\"desktop\",\"darkmode\":0}"
         },
         {
           "name": "finder_route_meta",
-          "value": "micro.content/post/create;index;1;1760033309656"
+          "value": "micro.content/post/create;index;1;1760169455668"
         }
       ]
     }
