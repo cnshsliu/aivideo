@@ -1,24 +1,24 @@
-import { json, error } from "@sveltejs/kit";
-import { verifySession } from "$lib/server/auth";
-import { db } from "$lib/server/db";
-import { project } from "$lib/server/db/schema";
-import fs from "fs/promises";
-import path from "path";
-import { nanoid } from "nanoid";
-import { eq } from "drizzle-orm";
+import { json, error } from '@sveltejs/kit';
+import { verifySession } from '$lib/server/auth';
+import { db } from '$lib/server/db';
+import { project } from '$lib/server/db/schema';
+import fs from 'fs/promises';
+import path from 'path';
+import { nanoid } from 'nanoid';
+import { eq } from 'drizzle-orm';
 
 export async function POST({ params, cookies }) {
   try {
     console.log(
-      "📋 [PROJECT COPY API] POST request to copy project:",
-      params.projectId,
+      '📋 [PROJECT COPY API] POST request to copy project:',
+      params.projectId
     );
 
     // Verify user session
     const session = await verifySession(cookies);
     if (!session) {
-      console.log("❌ [PROJECT COPY API] Unauthorized access attempt");
-      return error(401, { message: "Unauthorized" });
+      console.log('❌ [PROJECT COPY API] Unauthorized access attempt');
+      return error(401, { message: 'Unauthorized' });
     }
 
     const { projectId } = params;
@@ -31,11 +31,11 @@ export async function POST({ params, cookies }) {
       .limit(1);
 
     if (!dbProject || dbProject.length === 0) {
-      return error(404, { message: "Project not found" });
+      return error(404, { message: 'Project not found' });
     }
 
     const projectName = dbProject[0].name;
-    const vaultPath = process.env.AIV_VAULT_FOLDER || "./vault";
+    const vaultPath = process.env.AIV_VAULT_FOLDER || './vault';
     const userPath = path.join(vaultPath, session.username);
     const sourcePath = path.join(userPath, projectName);
 
@@ -43,7 +43,7 @@ export async function POST({ params, cookies }) {
     try {
       await fs.access(sourcePath);
     } catch {
-      return error(404, { message: "Project directory not found" });
+      return error(404, { message: 'Project directory not found' });
     }
 
     try {
@@ -76,7 +76,7 @@ export async function POST({ params, cookies }) {
           id: newProjectId,
           name: newProjectName,
           title: `${dbProject[0].title} (Copy)`,
-          video_title: dbProject[0].video_title || "",
+          video_title: dbProject[0].video_title || '',
           userId: session.userId,
           prompt: dbProject[0].prompt,
           staticSubtitle: dbProject[0].staticSubtitle,
@@ -100,27 +100,27 @@ export async function POST({ params, cookies }) {
           bgmFadeOut: dbProject[0].bgmFadeOut,
           bgmVolume: dbProject[0].bgmVolume,
           createdAt: new Date(),
-          updatedAt: new Date(),
+          updatedAt: new Date()
         })
         .returning();
 
       if (!newProject || newProject.length === 0) {
         console.error(
-          "❌ [PROJECT COPY API] Failed to create project in database",
+          '❌ [PROJECT COPY API] Failed to create project in database'
         );
-        return error(500, { message: "Failed to create project in database" });
+        return error(500, { message: 'Failed to create project in database' });
       }
 
-      console.log("✅ [PROJECT COPY API] Project copied:", newProjectId);
+      console.log('✅ [PROJECT COPY API] Project copied:', newProjectId);
 
       return json(newProject[0], { status: 201 });
     } catch (fsErr) {
-      console.error("❌ [PROJECT COPY API] Failed to copy project:", fsErr);
-      return error(500, { message: "Failed to copy project" });
+      console.error('❌ [PROJECT COPY API] Failed to copy project:', fsErr);
+      return error(500, { message: 'Failed to copy project' });
     }
   } catch (err) {
-    console.error("❌ [PROJECT COPY API] Project copy error:", err);
-    return error(500, { message: "Internal server error" });
+    console.error('❌ [PROJECT COPY API] Project copy error:', err);
+    return error(500, { message: 'Internal server error' });
   }
 }
 

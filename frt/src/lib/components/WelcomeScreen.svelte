@@ -8,8 +8,7 @@
     Welcome to AI Video Content Manager
   </h2>
   <p class="text-xl text-gray-600 mb-8">
-    Create stunning videos from your media with AI-powered content
-    generation
+    Create stunning videos from your media with AI-powered content generation
   </p>
   <button
     on:click={onGetStarted}

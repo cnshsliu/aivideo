@@ -39,11 +39,13 @@ For detailed documentation on the schema modification tool, see [SCHEMA_TOOL_REA
 To run the project locally:
 
 1. Install dependencies:
+
    ```bash
    pnpm install
    ```
 
 2. Start the development server:
+
    ```bash
    pnpm run dev
    ```

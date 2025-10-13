@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount } from 'svelte';
 
   interface Project {
     id: string;
@@ -17,14 +17,14 @@
 
   let {
     selectedFile,
-    uploadLevel = $bindable("public"),
+    uploadLevel = $bindable('public'),
     selectedProject,
     isUploading,
     onMediaSelect,
     onUpload,
     onPreviewMedia,
     onMediaSelectionChange,
-    onMediaSelectionDone,
+    onMediaSelectionDone
   }: {
     selectedFile: File | null;
     uploadLevel: string;
@@ -33,7 +33,7 @@
     onMediaSelect: (file: File) => void;
     onUpload: () => void;
     onPreviewMedia: (media: {
-      type: "image" | "video";
+      type: 'image' | 'video';
       url: string;
       name: string;
       poster?: string;
@@ -60,7 +60,7 @@
   $inspect(() => ({
     refreshPublicMedia,
     refreshUserMedia,
-    refreshAllMedia,
+    refreshAllMedia
   }));
 
   let publicMediaFiles = $state<MediaFile[]>([]);
@@ -74,24 +74,24 @@
   async function loadPublicMediaFiles() {
     loadingPublicMedia = true;
     try {
-      console.log("🌐 [CLIENT] Loading public media files...");
-      const response = await fetch("/api/media?level=public");
-      console.log("🌐 [CLIENT] Public response status:", response.status);
-      console.log("🌐 [CLIENT] Public response ok:", response.ok);
+      console.log('🌐 [CLIENT] Loading public media files...');
+      const response = await fetch('/api/media?level=public');
+      console.log('🌐 [CLIENT] Public response status:', response.status);
+      console.log('🌐 [CLIENT] Public response ok:', response.ok);
 
       if (response.ok) {
         const data = await response.json();
-        console.log("🌐 [CLIENT] Public media data:", data);
+        console.log('🌐 [CLIENT] Public media data:', data);
         publicMediaFiles = data;
       } else {
         console.error(
-          "🌐 [CLIENT] Failed to load public media files:",
-          await response.text(),
+          '🌐 [CLIENT] Failed to load public media files:',
+          await response.text()
         );
         publicMediaFiles = [];
       }
     } catch (err) {
-      console.error("🌐 [CLIENT] Error loading public media files:", err);
+      console.error('🌐 [CLIENT] Error loading public media files:', err);
       publicMediaFiles = [];
     } finally {
       loadingPublicMedia = false;
@@ -101,24 +101,24 @@
   async function loadUserMediaFiles() {
     loadingUserMedia = true;
     try {
-      console.log("🌐 [CLIENT] Loading user media files...");
-      const response = await fetch("/api/media?level=user");
-      console.log("🌐 [CLIENT] Response status:", response.status);
-      console.log("🌐 [CLIENT] Response ok:", response.ok);
+      console.log('🌐 [CLIENT] Loading user media files...');
+      const response = await fetch('/api/media?level=user');
+      console.log('🌐 [CLIENT] Response status:', response.status);
+      console.log('🌐 [CLIENT] Response ok:', response.ok);
 
       if (response.ok) {
         const data = await response.json();
-        console.log("🌐 [CLIENT] User media data:", data);
+        console.log('🌐 [CLIENT] User media data:', data);
         userMediaFiles = data;
       } else {
         console.error(
-          "🌐 [CLIENT] Failed to load user media files:",
-          await response.text(),
+          '🌐 [CLIENT] Failed to load user media files:',
+          await response.text()
         );
         userMediaFiles = [];
       }
     } catch (err) {
-      console.error("🌐 [CLIENT] Error loading user media files:", err);
+      console.error('🌐 [CLIENT] Error loading user media files:', err);
       userMediaFiles = [];
     } finally {
       loadingUserMedia = false;
@@ -126,33 +126,33 @@
   }
 
   function formatFileSize(bytes: number): string {
-    if (bytes === 0) return "0 B";
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
   function getMediaIcon(type: string): string {
     switch (type) {
-      case "image":
-        return "🖼️";
-      case "video":
-        return "🎥";
-      case "audio":
-        return "🎵";
+      case 'image':
+        return '🖼️';
+      case 'video':
+        return '🎥';
+      case 'audio':
+        return '🎵';
       default:
-        return "📄";
+        return '📄';
     }
   }
 
   function toggleMediaSelection(file: MediaFile) {
     const index = selectedMedia.findIndex(
-      (selected) => selected.name === file.name,
+      (selected) => selected.name === file.name
     );
     if (index > -1) {
       selectedMedia = selectedMedia.filter(
-        (selected) => selected.name !== file.name,
+        (selected) => selected.name !== file.name
       );
     } else {
       selectedMedia = [...selectedMedia, file];
@@ -165,48 +165,48 @@
 
     // Filter to only public media files for deletion
     const publicFiles = selectedMedia.filter((file) =>
-      publicMediaFiles.some((publicFile) => publicFile.name === file.name),
+      publicMediaFiles.some((publicFile) => publicFile.name === file.name)
     );
 
     if (publicFiles.length === 0) {
-      alert("Only public media files can be deleted from this interface.");
+      alert('Only public media files can be deleted from this interface.');
       return;
     }
 
     isDeleting = true;
     try {
       console.log(
-        "🗑️ [CLIENT] Deleting media files:",
-        publicFiles.map((f) => f.name),
+        '🗑️ [CLIENT] Deleting media files:',
+        publicFiles.map((f) => f.name)
       );
-      const response = await fetch("/api/media", {
-        method: "DELETE",
+      const response = await fetch('/api/media', {
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          level: "public",
-          files: publicFiles.map((f) => f.name),
-        }),
+          level: 'public',
+          files: publicFiles.map((f) => f.name)
+        })
       });
 
       if (response.ok) {
         const result = await response.json();
-        console.log("🗑️ [CLIENT] Delete result:", result);
+        console.log('🗑️ [CLIENT] Delete result:', result);
         // Reload public media files
         await loadPublicMediaFiles();
         // Clear selection
         selectedMedia = [];
       } else {
         console.error(
-          "🗑️ [CLIENT] Failed to delete media:",
-          await response.text(),
+          '🗑️ [CLIENT] Failed to delete media:',
+          await response.text()
         );
-        alert("Failed to delete some media files. Please try again.");
+        alert('Failed to delete some media files. Please try again.');
       }
     } catch (err) {
-      console.error("🗑️ [CLIENT] Error deleting media:", err);
-      alert("An error occurred while deleting media files.");
+      console.error('🗑️ [CLIENT] Error deleting media:', err);
+      alert('An error occurred while deleting media files.');
     } finally {
       isDeleting = false;
     }
@@ -219,23 +219,23 @@
     // Listen for media upload completion events
     const handleMediaUploadComplete = (event: CustomEvent) => {
       const { level } = event.detail;
-      if (level === "public") {
+      if (level === 'public') {
         loadPublicMediaFiles();
-      } else if (level === "user") {
+      } else if (level === 'user') {
         loadUserMediaFiles();
       }
     };
 
     window.addEventListener(
-      "mediaUploadComplete",
-      handleMediaUploadComplete as EventListener,
+      'mediaUploadComplete',
+      handleMediaUploadComplete as EventListener
     );
 
     // Cleanup event listener on component destroy
     return () => {
       window.removeEventListener(
-        "mediaUploadComplete",
-        handleMediaUploadComplete as EventListener,
+        'mediaUploadComplete',
+        handleMediaUploadComplete as EventListener
       );
     };
   });
@@ -386,7 +386,7 @@
               }}
               class="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
             >
-              {isSelecting ? "Done" : "Select"}
+              {isSelecting ? 'Done' : 'Select'}
             </button>
             <button
               onclick={loadPublicMediaFiles}
@@ -442,9 +442,9 @@
                     toggleMediaSelection(file);
                   } else {
                     onPreviewMedia({
-                      type: file.type === "image" ? "image" : "video",
+                      type: file.type === 'image' ? 'image' : 'video',
                       url: file.url,
-                      name: file.name,
+                      name: file.name
                     });
                   }
                 }}
@@ -452,7 +452,7 @@
                   ? `Select ${file.name}`
                   : `Preview ${file.name}`}
               >
-                {#if file.type === "image"}
+                {#if file.type === 'image'}
                   <div class="aspect-square overflow-hidden bg-gray-100">
                     <img
                       src={file.url}
@@ -461,7 +461,7 @@
                       loading="lazy"
                     />
                   </div>
-                {:else if file.type === "video"}
+                {:else if file.type === 'video'}
                   <div class="aspect-square overflow-hidden bg-gray-100">
                     <video
                       src={file.url}
@@ -545,7 +545,7 @@
               }}
               class="rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
             >
-              {isSelecting ? "Done" : "Select"}
+              {isSelecting ? 'Done' : 'Select'}
             </button>
             <button
               onclick={loadUserMediaFiles}
@@ -596,7 +596,7 @@
             {#each userMediaFiles as file (file.name)}
               <button
                 class="group relative w-full overflow-hidden rounded-lg border-2 {selectedMedia.some(
-                  (selected) => selected.name === file.name,
+                  (selected) => selected.name === file.name
                 )
                   ? 'border-blue-500'
                   : 'border-gray-200'} bg-white transition-all hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -605,9 +605,9 @@
                     toggleMediaSelection(file);
                   } else {
                     onPreviewMedia({
-                      type: file.type === "image" ? "image" : "video",
+                      type: file.type === 'image' ? 'image' : 'video',
                       url: file.url,
-                      name: file.name,
+                      name: file.name
                     });
                   }
                 }}
@@ -615,7 +615,7 @@
                   ? `Select ${file.name}`
                   : `Preview ${file.name}`}
               >
-                {#if file.type === "image"}
+                {#if file.type === 'image'}
                   <div class="aspect-square overflow-hidden bg-gray-100">
                     <img
                       src={file.url}
@@ -624,7 +624,7 @@
                       loading="lazy"
                     />
                   </div>
-                {:else if file.type === "video"}
+                {:else if file.type === 'video'}
                   <div class="aspect-square overflow-hidden bg-gray-100">
                     <video
                       src={file.url}

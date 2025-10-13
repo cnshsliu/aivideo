@@ -217,6 +217,8 @@
   let bgmFiles = $state<string[]>([]);
   let audioPlayer = $state<HTMLAudioElement | null>(null);
   let isPlaying = $state(false);
+  let isFullScreen = $state(false);
+  let saveTimeout = $state<any>(null);
 
   // Load BGM files
   async function loadBgmFiles() {
@@ -574,6 +576,28 @@
     loadBgmFiles();
   });
 
+  // Auto-save prompt content with debouncing - only on user input
+  let isInitialized = $state(false);
+
+  $effect(() => {
+    // Mark as initialized after first render
+    isInitialized = true;
+  });
+
+  async function handlePromptInput() {
+    if (!isInitialized) return; // Don't auto-save during initialization
+
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+      try {
+        await saveContent();
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+        // Don't show error to user for auto-save failures
+      }
+    }, 1000);
+  }
+
   // Tab state
   let activeTab = $state('video-title');
 
@@ -858,10 +882,18 @@
     >
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold">Prompt Editor</h3>
+        <button
+          onclick={() => (isFullScreen = !isFullScreen)}
+          class="text-blue-500 hover:text-blue-700 text-sm"
+        >
+          {isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
+        </button>
       </div>
       <textarea
+        id="prompt_editor"
         bind:value={promptContent}
         placeholder="Enter your video generation prompt..."
+        oninput={handlePromptInput}
         class="h-48 w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
       ></textarea>
       <p class="mt-2 text-sm text-gray-500">
@@ -1584,6 +1616,30 @@
       {/if}
     </div>
   </div>
+
+  <!-- Full Screen Prompt Editor Modal -->
+  {#if isFullScreen}
+    <div class="fixed inset-0 z-50 bg-white">
+      <div class="flex flex-col h-full">
+        <div
+          class="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50"
+        >
+          <h3 class="text-lg font-semibold">Prompt Editor (Full Screen)</h3>
+          <button
+            onclick={() => (isFullScreen = false)}
+            class="text-red-500 hover:text-red-700 text-xl font-bold">×</button
+          >
+        </div>
+        <div class="flex-1 p-4 overflow-auto">
+          <textarea
+            bind:value={promptContent}
+            placeholder="Enter your video generation prompt..."
+            class="w-full h-full resize-none border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 text-base"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <!-- Logs -->
   {#if showLogs}

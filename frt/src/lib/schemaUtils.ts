@@ -4,12 +4,17 @@
  */
 
 interface SchemaModificationOptions {
-  action: "addColumn" | "dropColumn" | "modifyColumn" | "addConstraint" | "dropConstraint";
+  action:
+    | 'addColumn'
+    | 'dropColumn'
+    | 'modifyColumn'
+    | 'addConstraint'
+    | 'dropConstraint';
   table: string;
   column?: string;
   type?: string;
   constraintName?: string;
-  constraintType?: "primaryKey" | "unique" | "check" | "notNull";
+  constraintType?: 'primaryKey' | 'unique' | 'check' | 'notNull';
   checkExpression?: string;
   newColumnName?: string;
   newName?: string;
@@ -22,24 +27,26 @@ interface SchemaModificationOptions {
  * @param options - The schema modification options
  * @returns A promise that resolves to the response from the API
  */
-export async function modifySchema(options: SchemaModificationOptions): Promise<any> {
+export async function modifySchema(
+  options: SchemaModificationOptions
+): Promise<any> {
   try {
-    const response = await fetch("/api/schema", {
-      method: "POST",
+    const response = await fetch('/api/schema', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(options),
+      body: JSON.stringify(options)
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to modify schema");
+      throw new Error(errorData.message || 'Failed to modify schema');
     }
 
     return await response.json();
   } catch (error) {
-    console.error("Error modifying schema:", error);
+    console.error('Error modifying schema:', error);
     throw error;
   }
 }
@@ -61,12 +68,12 @@ export async function addColumn(
   isNullable: boolean = true
 ): Promise<any> {
   return modifySchema({
-    action: "addColumn",
+    action: 'addColumn',
     table,
     column,
     type,
     defaultValue,
-    isNullable,
+    isNullable
   });
 }
 
@@ -78,9 +85,9 @@ export async function addColumn(
  */
 export async function dropColumn(table: string, column: string): Promise<any> {
   return modifySchema({
-    action: "dropColumn",
+    action: 'dropColumn',
     table,
-    column,
+    column
   });
 }
 
@@ -99,11 +106,11 @@ export async function modifyColumn(
   newName?: string
 ): Promise<any> {
   return modifySchema({
-    action: "modifyColumn",
+    action: 'modifyColumn',
     table,
     column,
     type,
-    newName,
+    newName
   });
 }
 
@@ -119,17 +126,17 @@ export async function modifyColumn(
 export async function addConstraint(
   table: string,
   constraintName: string,
-  constraintType: "primaryKey" | "unique" | "check" | "notNull",
+  constraintType: 'primaryKey' | 'unique' | 'check' | 'notNull',
   column?: string,
   checkExpression?: string
 ): Promise<any> {
   return modifySchema({
-    action: "addConstraint",
+    action: 'addConstraint',
     table,
     constraintName,
     constraintType,
     column,
-    checkExpression,
+    checkExpression
   });
 }
 
@@ -139,10 +146,13 @@ export async function addConstraint(
  * @param constraintName - The constraint name
  * @returns A promise that resolves to the response from the API
  */
-export async function dropConstraint(table: string, constraintName: string): Promise<any> {
+export async function dropConstraint(
+  table: string,
+  constraintName: string
+): Promise<any> {
   return modifySchema({
-    action: "dropConstraint",
+    action: 'dropConstraint',
     table,
-    constraintName,
+    constraintName
   });
 }

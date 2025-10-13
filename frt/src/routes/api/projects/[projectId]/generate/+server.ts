@@ -129,6 +129,19 @@ async function prepareAndRunGeneration(
       .from(material)
       .where(eq(material.projectId, theProject.id));
 
+    const mediaDir = path.join(projectPath, 'media');
+    await fs.mkdir(mediaDir, { recursive: true });
+
+    // Clear existing files in mediaDir
+    const existingFiles = await fs.readdir(mediaDir);
+    for (const file of existingFiles) {
+      const filePath = path.join(mediaDir, file);
+      const stat = await fs.stat(filePath);
+      if (stat.isFile()) {
+        await fs.unlink(filePath);
+      }
+    }
+
     if (materials.length > 0) {
       const mediaDir = path.join(projectPath, 'media');
       await fs.mkdir(mediaDir, { recursive: true });

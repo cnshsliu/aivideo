@@ -1,6 +1,6 @@
 <script lang="ts">
   export let previewMedia: {
-    type: "image" | "video";
+    type: 'image' | 'video';
     url: string;
     name: string;
     poster?: string;
@@ -21,7 +21,9 @@
     aria-modal="true"
     tabindex="-1"
     bind:this={modalDiv}
-    on:keydown={(e) => { if (e.key === 'Escape') onClose(); }}
+    on:keydown={(e) => {
+      if (e.key === 'Escape') onClose();
+    }}
   >
     <div class="relative max-w-4xl max-h-[90vh] w-full mx-4">
       <!-- Close button -->
@@ -46,13 +48,13 @@
       </button>
 
       <!-- Media display -->
-      {#if previewMedia.type === "image"}
+      {#if previewMedia.type === 'image'}
         <img
           src={previewMedia.url}
           alt={previewMedia.name}
           class="w-full h-auto max-h-[80vh] object-contain rounded-lg"
         />
-      {:else if previewMedia.type === "video"}
+      {:else if previewMedia.type === 'video'}
         <video
           controls
           class="w-full h-auto max-h-[80vh] rounded-lg"

@@ -1,22 +1,22 @@
-import { error } from "@sveltejs/kit";
-import { verifySession } from "$lib/server/auth";
-import { db } from "$lib/server/db";
-import { project } from "$lib/server/db/schema";
-import { eq } from "drizzle-orm";
-import fs from "fs/promises";
+import { error } from '@sveltejs/kit';
+import { verifySession } from '$lib/server/auth';
+import { db } from '$lib/server/db';
+import { project } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
+import fs from 'fs/promises';
 
 export async function GET({ params, cookies }) {
   try {
     console.log(
-      "📖 [LOG API] GET request to read log for progress:",
-      params.projectId,
+      '📖 [LOG API] GET request to read log for progress:',
+      params.projectId
     );
 
     // Verify user session
     const session = await verifySession(cookies);
     if (!session) {
-      console.log("❌ [LOG API] Unauthorized access attempt");
-      return error(401, { message: "Unauthorized" });
+      console.log('❌ [LOG API] Unauthorized access attempt');
+      return error(401, { message: 'Unauthorized' });
     }
 
     const { projectId } = params;
@@ -29,14 +29,14 @@ export async function GET({ params, cookies }) {
       .limit(1);
 
     if (!progressRecord || progressRecord.length === 0) {
-      return error(404, { message: "Progress record not found" });
+      return error(404, { message: 'Progress record not found' });
     }
 
     const record = progressRecord[0];
 
     // Check if log file exists
     if (!record.progressLog) {
-      return error(404, { message: "Log file not found" });
+      return error(404, { message: 'Log file not found' });
     }
 
     try {
@@ -50,18 +50,20 @@ export async function GET({ params, cookies }) {
     } catch (fileErr: any) {
       // If file doesn't exist yet, return empty content (this is normal during early stages)
       if (fileErr.code === 'ENOENT') {
-        console.log("📖 [LOG API] Log file doesn't exist yet, returning empty content");
+        console.log(
+          "📖 [LOG API] Log file doesn't exist yet, returning empty content"
+        );
         return new Response('', {
           headers: {
             'Content-Type': 'text/plain'
           }
         });
       }
-      console.error("❌ [LOG API] Error reading log file:", fileErr);
-      return error(500, { message: "Error reading log file" });
+      console.error('❌ [LOG API] Error reading log file:', fileErr);
+      return error(500, { message: 'Error reading log file' });
     }
   } catch (err) {
-    console.error("❌ [LOG API] Error:", err);
-    return error(500, { message: "Internal server error" });
+    console.error('❌ [LOG API] Error:', err);
+    return error(500, { message: 'Internal server error' });
   }
 }

@@ -4,7 +4,10 @@ import { sql } from 'drizzle-orm';
 
 async function fillAliases() {
   try {
-    await db.update(material).set({ alias: sql`file_name` }).where(sql`${material.alias} IS NULL OR ${material.alias} = ''`);
+    await db
+      .update(material)
+      .set({ alias: sql`file_name` })
+      .where(sql`${material.alias} IS NULL OR ${material.alias} = ''`);
     console.log('Aliases filled for existing materials');
   } catch (err) {
     console.error('Error filling aliases:', err);
@@ -14,4 +17,3 @@ async function fillAliases() {
 }
 
 fillAliases();
-

@@ -283,7 +283,10 @@
     generationLogs = '';
     showLogs = true;
 
-    console.log('🎬 Starting video generation for project:', selectedProject.id);
+    console.log(
+      '🎬 Starting video generation for project:',
+      selectedProject.id
+    );
 
     // Start polling for log updates
     startLogPolling(selectedProject.id);
@@ -315,14 +318,19 @@
     }
 
     // Don't stop polling immediately - let it run for a while to capture logs
-    console.log('⏳ Video generation API call completed, keeping polling active...');
+    console.log(
+      '⏳ Video generation API call completed, keeping polling active...'
+    );
 
     // Stop polling after a reasonable timeout (e.g., 5 minutes)
-    setTimeout(() => {
-      console.log('⏰ Stopping log polling due to timeout');
-      generatingVideo = false;
-      stopLogPolling();
-    }, 5 * 60 * 1000); // 5 minutes
+    setTimeout(
+      () => {
+        console.log('⏰ Stopping log polling due to timeout');
+        generatingVideo = false;
+        stopLogPolling();
+      },
+      5 * 60 * 1000
+    ); // 5 minutes
   }
 
   async function uploadMedia() {
@@ -384,7 +392,9 @@
   }
 
   // Function to fetch project status
-  async function fetchProjectStatus(projectId: string): Promise<{ progressStep: string; progressResult?: string }> {
+  async function fetchProjectStatus(
+    projectId: string
+  ): Promise<{ progressStep: string; progressResult?: string }> {
     try {
       const response = await fetch(`/api/projects/${projectId}`);
       if (response.ok) {
@@ -423,8 +433,14 @@
       console.log('📊 Project status:', status.progressStep);
 
       // Check if generation is complete
-      if (status.progressStep === 'complete' || status.progressStep === 'error') {
-        console.log('✅ Video generation completed with status:', status.progressStep);
+      if (
+        status.progressStep === 'complete' ||
+        status.progressStep === 'error'
+      ) {
+        console.log(
+          '✅ Video generation completed with status:',
+          status.progressStep
+        );
         generatingVideo = false;
         stopLogPolling();
 

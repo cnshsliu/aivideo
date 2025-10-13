@@ -29,7 +29,7 @@
     currentUsername: string | undefined;
     onClose: () => void;
     onPreviewMedia: (media: {
-      type: "image" | "video";
+      type: 'image' | 'video';
       url: string;
       name: string;
       poster?: string;
@@ -42,7 +42,7 @@
     selectedProject,
     currentUsername,
     onClose,
-    onPreviewMedia,
+    onPreviewMedia
   }: Props = $props();
 
   let publicMediaFiles = $state<MediaFile[]>([]);
@@ -57,10 +57,10 @@
       new Set(
         projectMaterials
           .filter((material) =>
-            material.relativePath.startsWith("public/media/"),
+            material.relativePath.startsWith('public/media/')
           )
-          .map((material) => material.fileName),
-      ),
+          .map((material) => material.fileName)
+      )
   );
 
   let addedUserFiles = $derived.by(
@@ -70,24 +70,24 @@
           .filter((material) =>
             currentUsername
               ? material.relativePath.startsWith(`${currentUsername}/`)
-              : false,
+              : false
           )
-          .map((material) => material.fileName),
-      ),
+          .map((material) => material.fileName)
+      )
   );
 
   async function loadPublicMedia() {
     loadingPublic = true;
     try {
-      const response = await fetch("/api/media?level=public");
+      const response = await fetch('/api/media?level=public');
       if (response.ok) {
         publicMediaFiles = await response.json();
       } else {
-        console.error("Failed to load public media");
+        console.error('Failed to load public media');
         publicMediaFiles = [];
       }
     } catch (err) {
-      console.error("Error loading public media:", err);
+      console.error('Error loading public media:', err);
       publicMediaFiles = [];
     } finally {
       loadingPublic = false;
@@ -97,15 +97,15 @@
   async function loadUserMedia() {
     loadingUser = true;
     try {
-      const response = await fetch("/api/media?level=user");
+      const response = await fetch('/api/media?level=user');
       if (response.ok) {
         userMediaFiles = await response.json();
       } else {
-        console.error("Failed to load user media");
+        console.error('Failed to load user media');
         userMediaFiles = [];
       }
     } catch (err) {
-      console.error("Error loading user media:", err);
+      console.error('Error loading user media:', err);
       userMediaFiles = [];
     } finally {
       loadingUser = false;
@@ -117,16 +117,16 @@
 
     try {
       const response = await fetch(
-        `/api/projects/${selectedProject.id}/materials`,
+        `/api/projects/${selectedProject.id}/materials`
       );
       if (response.ok) {
         projectMaterials = await response.json();
       } else {
-        console.error("Failed to load project materials");
+        console.error('Failed to load project materials');
         projectMaterials = [];
       }
     } catch (err) {
-      console.error("Error loading project materials:", err);
+      console.error('Error loading project materials:', err);
       projectMaterials = [];
     }
   }
@@ -150,25 +150,25 @@
       const response = await fetch(
         `/api/projects/${selectedProject.id}/materials`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             relativePath,
             fileName: mediaFile.name,
-            fileType: mediaFile.type,
-          }),
-        },
+            fileType: mediaFile.type
+          })
+        }
       );
 
       if (response.ok) {
         await loadProjectMaterials(); // Refresh materials
       } else {
         const error = await response.json();
-        alert(error.message || "Failed to add material");
+        alert(error.message || 'Failed to add material');
       }
     } catch (err) {
-      console.error("Error adding material:", err);
-      alert("Network error");
+      console.error('Error adding material:', err);
+      alert('Network error');
     }
   }
 
@@ -179,40 +179,40 @@
       const response = await fetch(
         `/api/projects/${selectedProject.id}/materials?materialId=${materialId}`,
         {
-          method: "DELETE",
-        },
+          method: 'DELETE'
+        }
       );
 
       if (response.ok) {
         await loadProjectMaterials(); // Refresh materials
       } else {
         const error = await response.json();
-        alert(error.message || "Failed to remove material");
+        alert(error.message || 'Failed to remove material');
       }
     } catch (err) {
-      console.error("Error removing material:", err);
-      alert("Network error");
+      console.error('Error removing material:', err);
+      alert('Network error');
     }
   }
 
   function formatFileSize(bytes: number): string {
-    if (bytes === 0) return "0 B";
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
   function getMediaIcon(type: string): string {
     switch (type) {
-      case "image":
-        return "🖼️";
-      case "video":
-        return "🎥";
-      case "audio":
-        return "🎵";
+      case 'image':
+        return '🖼️';
+      case 'video':
+        return '🎥';
+      case 'audio':
+        return '🎵';
       default:
-        return "📄";
+        return '📄';
     }
   }
 
@@ -279,19 +279,19 @@
         <div class="flex rounded-lg bg-gray-100/50 p-1">
           <button
             class="flex-1 rounded-md px-4 py-2 transition-all duration-200"
-            class:bg-white={materialsTab === "public"}
-            class:text-gray-900={materialsTab === "public"}
-            class:text-gray-600={materialsTab !== "public"}
-            onclick={() => (materialsTab = "public")}
+            class:bg-white={materialsTab === 'public'}
+            class:text-gray-900={materialsTab === 'public'}
+            class:text-gray-600={materialsTab !== 'public'}
+            onclick={() => (materialsTab = 'public')}
           >
             Public Media
           </button>
           <button
             class="flex-1 rounded-md px-4 py-2 transition-all duration-200"
-            class:bg-white={materialsTab === "user"}
-            class:text-gray-900={materialsTab === "user"}
-            class:text-gray-600={materialsTab !== "user"}
-            onclick={() => (materialsTab = "user")}
+            class:bg-white={materialsTab === 'user'}
+            class:text-gray-900={materialsTab === 'user'}
+            class:text-gray-600={materialsTab !== 'user'}
+            onclick={() => (materialsTab = 'user')}
           >
             User Media
           </button>
@@ -302,7 +302,7 @@
       <div
         class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 h-[calc(100vh-200px)] overflow-y-auto"
       >
-        {#if materialsTab === "public"}
+        {#if materialsTab === 'public'}
           {#if loadingPublic}
             <div class="col-span-full flex items-center justify-center py-8">
               <div class="flex items-center space-x-2">
@@ -320,23 +320,23 @@
             {#each publicMediaFiles as file (file.name)}
               <div
                 class="aspect-square rounded-lg border {isMaterialInProject(
-                  file,
+                  file
                 )
                   ? 'border-green-500 bg-green-50'
                   : 'border-gray-200'} bg-white transition-all hover:shadow-md relative group cursor-pointer"
                 onclick={() =>
                   onPreviewMedia({
-                    type: file.type === "image" ? "image" : "video",
+                    type: file.type === 'image' ? 'image' : 'video',
                     url: file.url,
-                    name: file.name,
+                    name: file.name
                   })}
                 onkeydown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onPreviewMedia({
-                      type: file.type === "image" ? "image" : "video",
+                      type: file.type === 'image' ? 'image' : 'video',
                       url: file.url,
-                      name: file.name,
+                      name: file.name
                     });
                   }
                 }}
@@ -344,7 +344,7 @@
                 tabindex="0"
                 aria-label={`Preview ${file.name}`}
               >
-                {#if file.type === "image"}
+                {#if file.type === 'image'}
                   <div
                     class="aspect-square overflow-hidden bg-gray-100 rounded-lg"
                   >
@@ -355,7 +355,7 @@
                       loading="lazy"
                     />
                   </div>
-                {:else if file.type === "video"}
+                {:else if file.type === 'video'}
                   <div
                     class="aspect-square overflow-hidden bg-gray-100 rounded-lg relative"
                   >
@@ -397,7 +397,7 @@
                       onclick={(e) => {
                         e.stopPropagation();
                         const material = projectMaterials.find(
-                          (m) => m.relativePath === `public/media/${file.name}`,
+                          (m) => m.relativePath === `public/media/${file.name}`
                         );
                         if (material) removeMaterialFromProject(material.id);
                       }}
@@ -448,9 +448,9 @@
                     onclick={(e) => {
                       e.stopPropagation();
                       onPreviewMedia({
-                        type: file.type === "image" ? "image" : "video",
+                        type: file.type === 'image' ? 'image' : 'video',
                         url: file.url,
-                        name: file.name,
+                        name: file.name
                       });
                     }}
                     title="Preview"
@@ -492,7 +492,7 @@
               </div>
             {/each}
           {/if}
-        {:else if materialsTab === "user"}
+        {:else if materialsTab === 'user'}
           {#if loadingUser}
             <div class="col-span-full flex items-center justify-center py-8">
               <div class="flex items-center space-x-2">
@@ -510,23 +510,23 @@
             {#each userMediaFiles as file (file.name)}
               <div
                 class="aspect-square rounded-lg border {isUserMaterialInProject(
-                  file,
+                  file
                 )
                   ? 'border-green-500 bg-green-50'
                   : 'border-gray-200'} bg-white transition-all hover:shadow-md relative group cursor-pointer"
                 onclick={() =>
                   onPreviewMedia({
-                    type: file.type === "image" ? "image" : "video",
+                    type: file.type === 'image' ? 'image' : 'video',
                     url: file.url,
-                    name: file.name,
+                    name: file.name
                   })}
                 onkeydown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onPreviewMedia({
-                      type: file.type === "image" ? "image" : "video",
+                      type: file.type === 'image' ? 'image' : 'video',
                       url: file.url,
-                      name: file.name,
+                      name: file.name
                     });
                   }
                 }}
@@ -534,7 +534,7 @@
                 tabindex="0"
                 aria-label={`Preview ${file.name}`}
               >
-                {#if file.type === "image"}
+                {#if file.type === 'image'}
                   <div
                     class="aspect-square overflow-hidden bg-gray-100 rounded-lg"
                   >
@@ -545,7 +545,7 @@
                       loading="lazy"
                     />
                   </div>
-                {:else if file.type === "video"}
+                {:else if file.type === 'video'}
                   <div
                     class="aspect-square overflow-hidden bg-gray-100 rounded-lg relative"
                   >
@@ -576,7 +576,7 @@
                         const material = projectMaterials.find(
                           (m) =>
                             m.relativePath ===
-                            `${currentUsername}/media/${file.name}`,
+                            `${currentUsername}/media/${file.name}`
                         );
                         if (material) removeMaterialFromProject(material.id);
                       }}
@@ -627,9 +627,9 @@
                     onclick={(e) => {
                       e.stopPropagation();
                       onPreviewMedia({
-                        type: file.type === "image" ? "image" : "video",
+                        type: file.type === 'image' ? 'image' : 'video',
                         url: file.url,
-                        name: file.name,
+                        name: file.name
                       });
                     }}
                     title="Preview"

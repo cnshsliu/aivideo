@@ -1,23 +1,27 @@
-import { json, error } from "@sveltejs/kit";
-import { readdirSync, statSync } from "fs";
-import { join } from "path";
+import { json, error } from '@sveltejs/kit';
+import { readdirSync, statSync } from 'fs';
+import { join } from 'path';
 
 // Path to the project's bgm folder
-const BGM_PATH = join(process.env.AIV_VAULT_FOLDER || process.cwd(), "public", "bgm");
+const BGM_PATH = join(
+  process.env.AIV_VAULT_FOLDER || process.cwd(),
+  'public',
+  'bgm'
+);
 
 export async function GET() {
   try {
-    console.log("🎵 [BGM API] Listing BGM files from:", BGM_PATH);
+    console.log('🎵 [BGM API] Listing BGM files from:', BGM_PATH);
 
     // Ensure directory exists
     try {
       const files = readdirSync(BGM_PATH);
-      console.log("📄 [BGM API] Files found:", files);
+      console.log('📄 [BGM API] Files found:', files);
 
       const bgmFiles = files
         .filter((file) => {
-          const ext = file.split(".").pop()?.toLowerCase() || "";
-          return ["mp3", "wav", "ogg", "aac", "flac", "m4a"].includes(ext);
+          const ext = file.split('.').pop()?.toLowerCase() || '';
+          return ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'].includes(ext);
         })
         .map((file) => {
           try {
@@ -27,7 +31,7 @@ export async function GET() {
             return {
               name: file,
               size: stats.size,
-              modified: stats.mtime.toISOString(),
+              modified: stats.mtime.toISOString()
             };
           } catch (err) {
             console.error(`Error processing file ${file}:`, err);
@@ -37,19 +41,19 @@ export async function GET() {
         .filter((item) => item !== null)
         .sort((a, b) => a.name.localeCompare(b.name));
 
-      console.log("✅ [BGM API] Processed BGM files:", bgmFiles.length);
-      return json(bgmFiles.map(file => file.name));
+      console.log('✅ [BGM API] Processed BGM files:', bgmFiles.length);
+      return json(bgmFiles.map((file) => file.name));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.log(
-        "❌ [BGM API] Directory does not exist or cannot be accessed:",
-        message,
+        '❌ [BGM API] Directory does not exist or cannot be accessed:',
+        message
       );
       // Directory doesn't exist, return empty array
       return json([]);
     }
   } catch (err) {
-    console.error("❌ [BGM API] Error listing BGM files:", err);
-    throw error(500, "Failed to list BGM files");
+    console.error('❌ [BGM API] Error listing BGM files:', err);
+    throw error(500, 'Failed to list BGM files');
   }
 }

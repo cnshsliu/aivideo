@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI from 'openai';
 
 interface AgentConfig {
   model: string;
@@ -16,30 +16,30 @@ export class Agent {
 
     // Set default configuration based on the MaaS provider
     switch (maas) {
-      case "qwen3coder":
+      case 'qwen3coder':
         this.config = {
-          model: "qwen-max", // Updated to a valid Qwen model name
+          model: 'qwen-max', // Updated to a valid Qwen model name
           apiKey:
             process.env.QWEN_API_KEY ||
             process.env.OPENAI_API_KEY ||
-            "fake-key-for-demo",
+            'fake-key-for-demo',
           baseURL:
             process.env.QWEN_BASE_URL ||
-            "https://dashscope.aliyuncs.com/compatible-mode/v1", // Qwen API endpoint
+            'https://dashscope.aliyuncs.com/compatible-mode/v1' // Qwen API endpoint
         };
         break;
       default:
         this.config = {
-          model: "gpt-4o-mini",
-          apiKey: process.env.OPENAI_API_KEY || "fake-key-for-demo",
-          baseURL: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+          model: 'gpt-4o-mini',
+          apiKey: process.env.OPENAI_API_KEY || 'fake-key-for-demo',
+          baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
         };
     }
 
     // Initialize OpenAI client
     this.client = new OpenAI({
       apiKey: this.config.apiKey,
-      baseURL: this.config.baseURL,
+      baseURL: this.config.baseURL
     });
   }
 
@@ -56,61 +56,61 @@ export class Agent {
       console.log(`📋 [AGENT] [${requestId}] MaaS: ${this.maas}`);
       console.log(`📦 [AGENT] [${requestId}] Model: ${this.config.model}`);
       console.log(
-        `📏 [AGENT] [${requestId}] Prompt length: ${prompt.length} characters`,
+        `📏 [AGENT] [${requestId}] Prompt length: ${prompt.length} characters`
       );
       console.log(
-        `📄 [AGENT] [${requestId}] Prompt preview: ${prompt.substring(0, 100)}${prompt.length > 100 ? "..." : ""}`,
+        `📄 [AGENT] [${requestId}] Prompt preview: ${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}`
       );
 
       const response = await this.client.chat.completions.create({
         model: this.config.model,
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
-        max_tokens: 2048,
+        max_tokens: 2048
       });
 
       const duration = Date.now() - startTime;
-      const content = response.choices[0]?.message?.content || "";
+      const content = response.choices[0]?.message?.content || '';
       const promptTokens = response.usage?.prompt_tokens || 0;
       const completionTokens = response.usage?.completion_tokens || 0;
       const totalTokens = response.usage?.total_tokens || 0;
 
       console.log(
-        `✅ [AGENT] [${requestId}] LLM invocation completed successfully`,
+        `✅ [AGENT] [${requestId}] LLM invocation completed successfully`
       );
       console.log(`⏱️ [AGENT] [${requestId}] Response time: ${duration}ms`);
       console.log(
-        `📊 [AGENT] [${requestId}] Tokens used - Prompt: ${promptTokens}, Completion: ${completionTokens}, Total: ${totalTokens}`,
+        `📊 [AGENT] [${requestId}] Tokens used - Prompt: ${promptTokens}, Completion: ${completionTokens}, Total: ${totalTokens}`
       );
       console.log(
-        `📏 [AGENT] [${requestId}] Response length: ${content.length} characters`,
+        `📏 [AGENT] [${requestId}] Response length: ${content.length} characters`
       );
       console.log(
-        `📄 [AGENT] [${requestId}] Response preview: ${content.substring(0, 100)}${content.length > 100 ? "..." : ""}`,
+        `📄 [AGENT] [${requestId}] Response preview: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
       );
 
       return {
         response: content,
         model: response.model,
         usage: response.usage,
-        duration: duration,
+        duration: duration
       };
     } catch (error) {
       const duration = Date.now() - startTime;
       console.error(
         `❌ [AGENT] [${requestId}] Error calling ${this.maas} after ${duration}ms:`,
-        error,
+        error
       );
 
       // Log error details
       if (error instanceof Error) {
         console.error(`📋 [AGENT] [${requestId}] Error name: ${error.name}`);
         console.error(
-          `📋 [AGENT] [${requestId}] Error message: ${error.message}`,
+          `📋 [AGENT] [${requestId}] Error message: ${error.message}`
         );
         if (error.stack) {
           console.error(
-            `📋 [AGENT] [${requestId}] Error stack: ${error.stack.substring(0, 500)}${error.stack.length > 500 ? "..." : ""}`,
+            `📋 [AGENT] [${requestId}] Error stack: ${error.stack.substring(0, 500)}${error.stack.length > 500 ? '...' : ''}`
           );
         }
       }

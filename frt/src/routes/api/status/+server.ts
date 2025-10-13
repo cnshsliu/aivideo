@@ -1,29 +1,29 @@
-import { json, type RequestHandler } from "@sveltejs/kit";
-import { BatchTranslationService } from "$lib/server/batch-translation";
-import { verifySession } from "$lib/server/auth";
-import { db } from "$lib/server/db";
-import { translationTask } from "$lib/server/db/schema";
-import { eq, or } from "drizzle-orm";
+import { json, type RequestHandler } from '@sveltejs/kit';
+import { BatchTranslationService } from '$lib/server/batch-translation';
+import { verifySession } from '$lib/server/auth';
+import { db } from '$lib/server/db';
+import { translationTask } from '$lib/server/db/schema';
+import { eq, or } from 'drizzle-orm';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   try {
-    console.log("📊 [STATUS API] Received status request");
+    console.log('📊 [STATUS API] Received status request');
 
     // Verify user session
     const session = await verifySession(cookies);
     if (!session) {
-      console.log("❌ [STATUS API] Unauthorized - invalid session");
-      return json({ error: "Unauthorized" }, { status: 401 });
+      console.log('❌ [STATUS API] Unauthorized - invalid session');
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const taskId = url.searchParams.get("taskId");
-    const batchId = url.searchParams.get("batchId");
+    const taskId = url.searchParams.get('taskId');
+    const batchId = url.searchParams.get('batchId');
 
-    console.log("🔍 [STATUS API] Query params:", { taskId, batchId });
+    console.log('🔍 [STATUS API] Query params:', { taskId, batchId });
 
     if (!taskId && !batchId) {
-      console.log("❌ [STATUS API] Missing taskId or batchId");
-      return json({ error: "taskId or batchId is required" }, { status: 400 });
+      console.log('❌ [STATUS API] Missing taskId or batchId');
+      return json({ error: 'taskId or batchId is required' }, { status: 400 });
     }
 
     if (batchId) {
@@ -32,15 +32,15 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       const batchStatus = await batchService.getBatchStatus(batchId);
 
       if (!batchStatus) {
-        console.log("❌ [STATUS API] Batch not found:", batchId);
-        return json({ error: "Batch not found" }, { status: 404 });
+        console.log('❌ [STATUS API] Batch not found:', batchId);
+        return json({ error: 'Batch not found' }, { status: 404 });
       }
 
-      console.log("✅ [STATUS API] Batch status retrieved");
+      console.log('✅ [STATUS API] Batch status retrieved');
       return json({
         success: true,
-        type: "batch",
-        data: batchStatus,
+        type: 'batch',
+        data: batchStatus
       });
     }
 
@@ -50,21 +50,18 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
         .select()
         .from(translationTask)
         .where(
-          or(
-            eq(translationTask.taskId, taskId),
-            eq(translationTask.id, taskId),
-          ),
+          or(eq(translationTask.taskId, taskId), eq(translationTask.id, taskId))
         );
 
       if (!task) {
-        console.log("❌ [STATUS API] Task not found:", taskId);
-        return json({ error: "Task not found" }, { status: 404 });
+        console.log('❌ [STATUS API] Task not found:', taskId);
+        return json({ error: 'Task not found' }, { status: 404 });
       }
 
-      console.log("✅ [STATUS API] Task status retrieved");
+      console.log('✅ [STATUS API] Task status retrieved');
       return json({
         success: true,
-        type: "task",
+        type: 'task',
         data: {
           task: {
             id: task.id,
@@ -77,20 +74,20 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
             startedAt: task.startedAt,
             completedAt: task.completedAt,
             errorMessage: task.errorMessage,
-            batchId: task.batchId,
+            batchId: task.batchId
           },
-          batch: null, // No batch information in the new system
-        },
+          batch: null // No batch information in the new system
+        }
       });
     }
   } catch (error) {
-    console.error("❌ [STATUS API] Error checking status:", error);
+    console.error('❌ [STATUS API] Error checking status:', error);
     return json(
       {
-        error: "Failed to get status",
-        details: error instanceof Error ? error.message : String(error),
+        error: 'Failed to get status',
+        details: error instanceof Error ? error.message : String(error)
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 };

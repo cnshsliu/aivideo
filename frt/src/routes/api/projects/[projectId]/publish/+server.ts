@@ -10,7 +10,10 @@ import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, params, cookies }) => {
   try {
-    console.log('🎬 [VIDEO PUBLISH API] POST request to publish video for project:', params.projectId);
+    console.log(
+      '🎬 [VIDEO PUBLISH API] POST request to publish video for project:',
+      params.projectId
+    );
 
     // Verify user session
     const session = await verifySession(cookies);
@@ -35,14 +38,19 @@ export const POST: RequestHandler = async ({ request, params, cookies }) => {
     const selectedProject = dbProject[0];
 
     // Check AIV_PUBLISH_FOLDER environment variable, default to ~/dev/aivideo/publish
-    const publishFolder = process.env.AIV_PUBLISH_FOLDER || `${process.env.HOME}/dev/aivideo/publish`;
+    const publishFolder =
+      process.env.AIV_PUBLISH_FOLDER ||
+      `${process.env.HOME}/dev/aivideo/publish`;
 
     // Ensure publish folder exists
     try {
       await fs.mkdir(publishFolder, { recursive: true });
     } catch (error) {
       console.error('Failed to create publish folder:', error);
-      return json({ error: 'Failed to create publish folder' }, { status: 500 });
+      return json(
+        { error: 'Failed to create publish folder' },
+        { status: 500 }
+      );
     }
 
     // Create JSON filename
@@ -53,7 +61,9 @@ export const POST: RequestHandler = async ({ request, params, cookies }) => {
     try {
       await fs.access(jsonFilePath);
       // File exists, create backup
-      const backupTimestamp = new Date(Date.now() - 10000).toISOString().replace(/[:.]/g, '-');
+      const backupTimestamp = new Date(Date.now() - 10000)
+        .toISOString()
+        .replace(/[:.]/g, '-');
       const backupFilename = `${selectedProject.name}_${backupTimestamp}.json`;
       const backupFilePath = path.join(publishFolder, backupFilename);
 
@@ -64,7 +74,7 @@ export const POST: RequestHandler = async ({ request, params, cookies }) => {
     }
 
     // Get the full path to the generated video
-    const vaultPath = process.env.AIV_VAULT_FOLDER || "./vault";
+    const vaultPath = process.env.AIV_VAULT_FOLDER || './vault';
     const fullVaultPath = path.resolve(vaultPath);
     const userPath = path.join(fullVaultPath, session.username);
     const projectPath = path.join(userPath, selectedProject.name);
@@ -79,7 +89,11 @@ export const POST: RequestHandler = async ({ request, params, cookies }) => {
 
     // Write JSON file
     try {
-      await fs.writeFile(jsonFilePath, JSON.stringify(jsonContent, null, 2), 'utf-8');
+      await fs.writeFile(
+        jsonFilePath,
+        JSON.stringify(jsonContent, null, 2),
+        'utf-8'
+      );
       console.log(`Created publish file: ${jsonFilePath}`);
     } catch (error) {
       console.error('Failed to write JSON file:', error);
@@ -98,29 +112,40 @@ export const POST: RequestHandler = async ({ request, params, cookies }) => {
 
       child.on('close', (code) => {
         if (code === 0) {
-          resolve(json({
-            success: true,
-            message: 'Video published successfully',
-            jsonFile: jsonFilePath,
-            videoPath
-          }));
+          resolve(
+            json({
+              success: true,
+              message: 'Video published successfully',
+              jsonFile: jsonFilePath,
+              videoPath
+            })
+          );
         } else {
-          resolve(json({
-            error: `Publish command failed with code ${code}`,
-            jsonFile: jsonFilePath
-          }, { status: 500 }));
+          resolve(
+            json(
+              {
+                error: `Publish command failed with code ${code}`,
+                jsonFile: jsonFilePath
+              },
+              { status: 500 }
+            )
+          );
         }
       });
 
       child.on('error', (error) => {
         console.error('Command execution error:', error);
-        resolve(json({
-          error: 'Command execution failed',
-          jsonFile: jsonFilePath
-        }, { status: 500 }));
+        resolve(
+          json(
+            {
+              error: 'Command execution failed',
+              jsonFile: jsonFilePath
+            },
+            { status: 500 }
+          )
+        );
       });
     });
-
   } catch (error) {
     console.error('Publish API error:', error);
     return json({ error: 'Internal server error' }, { status: 500 });

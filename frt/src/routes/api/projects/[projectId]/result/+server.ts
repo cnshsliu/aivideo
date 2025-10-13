@@ -1,24 +1,24 @@
-import { error } from "@sveltejs/kit";
-import { verifySession } from "$lib/server/auth";
-import { db } from "$lib/server/db";
-import { project } from "$lib/server/db/schema";
-import { eq } from "drizzle-orm";
-import fs from "fs/promises";
-import fsSync from "fs";
-import path from "path";
+import { error } from '@sveltejs/kit';
+import { verifySession } from '$lib/server/auth';
+import { db } from '$lib/server/db';
+import { project } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
 
 export async function GET({ params, cookies, url }) {
   try {
     console.log(
-      "🎬 [RESULT API] GET request to play result video for progress:",
-      params.projectId,
+      '🎬 [RESULT API] GET request to play result video for progress:',
+      params.projectId
     );
 
     // Verify user session
     const session = await verifySession(cookies);
     if (!session) {
-      console.log("❌ [RESULT API] Unauthorized access attempt");
-      return error(401, { message: "Unauthorized" });
+      console.log('❌ [RESULT API] Unauthorized access attempt');
+      return error(401, { message: 'Unauthorized' });
     }
 
     const { projectId } = params;
@@ -31,14 +31,14 @@ export async function GET({ params, cookies, url }) {
       .limit(1);
 
     if (!progressRecord || progressRecord.length === 0) {
-      return error(404, { message: "Progress record not found" });
+      return error(404, { message: 'Progress record not found' });
     }
 
     const record = progressRecord[0];
 
     // Check if result file exists
     if (!record.progressResult) {
-      return error(404, { message: "Result video not found" });
+      return error(404, { message: 'Result video not found' });
     }
 
     try {
@@ -47,7 +47,7 @@ export async function GET({ params, cookies, url }) {
 
       // Check if download parameter is present
       const download = url.searchParams.get('download') === 'true';
-      
+
       // Get filename from path
       const fileName = path.basename(record.progressResult);
 
@@ -72,11 +72,11 @@ export async function GET({ params, cookies, url }) {
         headers
       });
     } catch (err) {
-      console.error("❌ [RESULT API] Error accessing result file:", err);
-      return error(404, { message: "Result video not found" });
+      console.error('❌ [RESULT API] Error accessing result file:', err);
+      return error(404, { message: 'Result video not found' });
     }
   } catch (err) {
-    console.error("❌ [RESULT API] Error:", err);
-    return error(500, { message: "Internal server error" });
+    console.error('❌ [RESULT API] Error:', err);
+    return error(500, { message: 'Internal server error' });
   }
 }

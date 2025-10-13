@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { stopPropagation } from "svelte/legacy";
+  import { stopPropagation } from 'svelte/legacy';
 
   interface Project {
     id: string;
@@ -12,7 +12,13 @@
     staticSubtitle?: string;
   }
 
-  const { projects, onSelectProject, onCopyProject, onDeleteProject, onCreateProject } = $props();
+  const {
+    projects,
+    onSelectProject,
+    onCopyProject,
+    onDeleteProject,
+    onCreateProject
+  } = $props();
 
   let showDeleteConfirm = $state(false);
   let projectToDelete = $state<{ id: string; name: string } | null>(null);
@@ -56,14 +62,14 @@
         tabindex="0"
         onclick={() => onSelectProject(project)}
         onkeydown={(e) => {
-          if (e.key === "Enter") {
+          if (e.key === 'Enter') {
             onSelectProject(project);
-          } else if (e.key === " ") {
+          } else if (e.key === ' ') {
             e.preventDefault();
           }
         }}
         onkeyup={(e) => {
-          if (e.key === " ") {
+          if (e.key === ' ') {
             onSelectProject(project);
           }
         }}
@@ -162,11 +168,15 @@
 
 <!-- Delete Confirmation Modal -->
 {#if showDeleteConfirm && projectToDelete}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+  >
     <div class="rounded-xl bg-white p-6 shadow-lg w-full max-w-md">
       <h3 class="text-lg font-semibold mb-4">Confirm Deletion</h3>
       <p class="mb-6">
-        Are you sure you want to delete the project "<strong>{projectToDelete.name}</strong>"? This action cannot be undone.
+        Are you sure you want to delete the project "<strong
+          >{projectToDelete.name}</strong
+        >"? This action cannot be undone.
       </p>
       <div class="flex justify-end gap-3">
         <button

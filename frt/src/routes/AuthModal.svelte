@@ -3,20 +3,20 @@
   export let onClose: () => void;
   export let onLogin: (event: Event) => Promise<void>;
 
-  let error = "";
-  let success = "";
+  let error = '';
+  let success = '';
   let isSubmitting = false;
 
   async function handleSubmit(event: Event) {
     event.preventDefault();
     isSubmitting = true;
-    error = "";
-    success = "";
+    error = '';
+    success = '';
 
     try {
       await onLogin(event);
     } catch (err) {
-      error = "Network error. Please try again.";
+      error = 'Network error. Please try again.';
     } finally {
       isSubmitting = false;
     }
