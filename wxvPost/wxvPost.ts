@@ -75,7 +75,7 @@ class PlaywrightClient {
     console.log("Storage state saved.");
   }
 
-  async postVideo(videoPath: string, desc: string, brief: string): Promise<void> {
+  async postVideo(videoPath: string, desc: string, brief: string, dryrun: boolean): Promise<void> {
     if (!this.page) throw new Error("Page not initialized.");
     // Upload video file
     const fileInput = this.page.locator('input[type="file"]');
@@ -106,31 +106,62 @@ class PlaywrightClient {
     await this.saveStorageState();
 
     // Click submit button
-    // let submitButton;
-    // while (true) {
-    //   submitButton = this.page.getByRole('button', { name: '发表' });
-    //   if (submitButton && !(await submitButton.evaluate(button => button.classList.contains('weui-desktop-btn_disabled')))) break;
-    //   await new Promise(resolve => setTimeout(resolve, 1000));
-    // }
-    // if (submitButton) await submitButton.click();
-    // await this.saveStorageState();
+    if (!dryrun) {
+      let submitButton;
+      while (true) {
+        submitButton = this.page.getByRole('button', { name: '发表' });
+        if (submitButton && !(await submitButton.evaluate(button => button.classList.contains('weui-desktop-btn_disabled')))) break;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      if (submitButton) await submitButton.click();
+      await this.saveStorageState();
+    }
     console.log("Video post submitted");
   }
 }
 
 
+interface ArgConfig {
+  [key: string]: {
+    type: 'string' | 'boolean';
+    default?: any;
+  };
+}
+
 function parseArgs() {
+  const argConfig: ArgConfig = {
+    json: { type: 'string' },
+    video: { type: 'string' },
+    desc: { type: 'string' },
+    brief: { type: 'string' },
+    dryrun: { type: 'boolean', default: false }
+  };
+
   const args = process.argv.slice(2);
-  const params: { [key: string]: string } = {};
+  const params: { [key: string]: string | boolean } = {};
+
+  // Initialize with defaults
+  for (const key in argConfig) {
+    if (argConfig[key].default !== undefined) {
+      params[key] = argConfig[key].default;
+    }
+  }
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg.startsWith('--')) {
       const key = arg.slice(2);
-      const value = args[i + 1];
-      if (value && !value.startsWith('--')) {
-        params[key] = value;
-        i++; // Skip the next arg as it's the value
+      if (key in argConfig) {
+        const config = argConfig[key];
+        if (config.type === 'boolean') {
+          params[key] = true;
+        } else if (config.type === 'string') {
+          const nextArg = args[i + 1];
+          if (nextArg && !nextArg.startsWith('--')) {
+            params[key] = nextArg;
+            i++; // Skip the next arg as it's the value
+          }
+        }
       }
     }
   }
@@ -155,18 +186,20 @@ async function main() {
   const cliArgs = parseArgs();
 
   // Load JSON config (relative to current working directory)
-  const jsonConfigPath = path.join(process.cwd(), '..', 'frt', 'sample-post-data.json');
-  const jsonConfig = loadJsonConfig(jsonConfigPath);
+  const jsonConfigPath = typeof cliArgs.json === 'string' ? cliArgs.json : undefined;
+  const jsonConfig = jsonConfigPath ? loadJsonConfig(jsonConfigPath) : null;
 
   // Determine parameters with priority: CLI args > JSON > defaults
-  const videoPath = cliArgs.video || jsonConfig.video || "/Users/lucas/dev/wxvPost/demo.mp4";
-  const desc = cliArgs.desc || jsonConfig.desc || "学习发表视频号";
-  const brief = cliArgs.brief || jsonConfig.brief || "#学习  #视频号";
+  const videoPath = typeof cliArgs.video === 'string' ? cliArgs.video : (jsonConfig && jsonConfig.video) || "/Users/lucas/dev/wxvPost/demo.mp4";
+  const desc = typeof cliArgs.desc === 'string' ? cliArgs.desc : (jsonConfig && jsonConfig.desc) || "学习发表视频号";
+  const brief = typeof cliArgs.brief === 'string' ? cliArgs.brief : (jsonConfig && jsonConfig.brief) || "#学习  #视频号";
+  const dryrun = cliArgs.dryrun === true;
 
   console.log("Using parameters:");
   console.log(`  Video: ${videoPath}`);
   console.log(`  Desc: ${desc}`);
   console.log(`  Title: ${brief}`);
+  console.log(`  Dryrun: ${dryrun}`);
 
 
   const client = new PlaywrightClient();
@@ -191,15 +224,17 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 5000));
     let isSessionOkay2 = await client.isSessionValid(["sessionid", "wxuin"]);
     await client.saveStorageState();
-    await client.postVideo(videoPath, desc, brief);
-    await client.saveStorageState();
+    await client.postVideo(videoPath, desc, brief, dryrun);
+
 
   } catch (error) {
     console.error("Error:", error);
     // Keep browser open for manual inspection
     return;
   }
-  //await client.disconnect();
+  if (!dryrun) {
+    await client.disconnect();
+  }
 }
 
 main().catch((error) => {

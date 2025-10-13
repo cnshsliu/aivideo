@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import WelcomeScreen from "$lib/components/WelcomeScreen.svelte";
-  import AppHeader from "$lib/components/AppHeader.svelte";
-  import MediaPreviewModal from "./MediaPreviewModal.svelte";
-  import ProjectsTab from "./ProjectsTab.svelte";
-  import MediaTab from "./MediaTab.svelte";
-  import ProjectDetailsTab from "./ProjectDetailsTab.svelte";
-  import CreateProjectModal from "./CreateProjectModal.svelte";
-  import MaterialsModal from "./MaterialsModal.svelte";
-  import AuthModal from "./AuthModal.svelte";
+  import { onMount } from 'svelte';
+  import WelcomeScreen from '$lib/components/WelcomeScreen.svelte';
+  import AppHeader from '$lib/components/AppHeader.svelte';
+  import MediaPreviewModal from './MediaPreviewModal.svelte';
+  import ProjectsTab from './ProjectsTab.svelte';
+  import MediaTab from './MediaTab.svelte';
+  import ProjectDetailsTab from './ProjectDetailsTab.svelte';
+  import CreateProjectModal from './CreateProjectModal.svelte';
+  import MaterialsModal from './MaterialsModal.svelte';
+  import AuthModal from './AuthModal.svelte';
 
   interface User {
     id: string;
@@ -29,8 +29,8 @@
   let user = $state<User | null>(null);
   let showAuth = $state(false);
   let checkingAuth = $state(true);
-  let error = $state("");
-  let success = $state("");
+  let error = $state('');
+  let success = $state('');
 
   // Project management
   let projects = $state<Project[]>([]);
@@ -43,22 +43,22 @@
     }
   });
   let showCreateProject = $state(false);
-  let newProjectName = $state("");
-  let newProjectTitle = $state("");
+  let newProjectName = $state('');
+  let newProjectTitle = $state('');
 
   // Media management
-  let activeTab = $state("projects");
+  let activeTab = $state('projects');
   let selectedFile = $state<File | null>(null);
-  let uploadLevel = $state("public"); // 'public', 'user', 'project'
+  let uploadLevel = $state('public'); // 'public', 'user', 'project'
   let isUploading = $state(false);
   let mediaTabRef = $state<MediaTab | null>(null);
 
   // Materials management
   let showMaterialsModal = $state(false);
-  let materialsTab = $state("public"); // 'public', 'user', 'project'
+  let materialsTab = $state('public'); // 'public', 'user', 'project'
   let materialsCloseCallback = $state<(() => void) | undefined>(undefined);
   let previewMedia = $state<{
-    type: "image" | "video";
+    type: 'image' | 'video';
     url: string;
     name: string;
     poster?: string;
@@ -66,28 +66,36 @@
 
   // Video generation
   let generatingVideo = $state(false);
-  let generationLogs = $state("");
+  let generationLogs = $state('');
   let showLogs = $state(false);
+  let logPollingInterval = $state<NodeJS.Timeout | null>(null);
 
   onMount(async () => {
     await checkCurrentUser();
     await loadUserProjects();
   });
 
+  // Cleanup polling when component is destroyed
+  $effect(() => {
+    return () => {
+      stopLogPolling();
+    };
+  });
+
   async function checkCurrentUser() {
     try {
-      const response = await fetch("/api/auth/user");
+      const response = await fetch('/api/auth/user');
       if (response.ok) {
         user = await response.json();
-        if (user) console.log("✅ User authenticated:", user.username);
-        else console.log("ℹ️ No active session");
+        if (user) console.log('✅ User authenticated:', user.username);
+        else console.log('ℹ️ No active session');
       } else if (response.status === 401) {
         user = null;
-        console.log("ℹ️ No active session");
+        console.log('ℹ️ No active session');
       }
     } catch (err) {
       user = null;
-      console.error("Failed to check current user:", err);
+      console.error('Failed to check current user:', err);
     } finally {
       checkingAuth = false;
     }
@@ -97,27 +105,27 @@
     if (!user) return;
 
     try {
-      console.log("🔄 Loading user projects...");
-      const response = await fetch("/api/projects");
+      console.log('🔄 Loading user projects...');
+      const response = await fetch('/api/projects');
       if (response.ok) {
         projects = await response.json();
-        console.log("✅ Projects loaded:", projects);
+        console.log('✅ Projects loaded:', projects);
       } else {
         console.error(
-          "❌ Failed to load projects:",
+          '❌ Failed to load projects:',
           response.status,
-          await response.text(),
+          await response.text()
         );
         if (response.status === 401) {
-          console.log("🔐 Session expired, logging out...");
+          console.log('🔐 Session expired, logging out...');
           user = null;
           projects = [];
-          error = "Session expired. Please login again.";
-          setTimeout(() => (error = ""), 5000);
+          error = 'Session expired. Please login again.';
+          setTimeout(() => (error = ''), 5000);
         }
       }
     } catch (err) {
-      console.error("❌ Error loading projects:", err);
+      console.error('❌ Error loading projects:', err);
     }
   }
 
@@ -127,9 +135,9 @@
     const formData = new FormData(form);
 
     try {
-      const response = await fetch("/api/auth", {
-        method: "POST",
-        body: formData,
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        body: formData
       });
 
       const data = await response.json();
@@ -139,47 +147,47 @@
         await loadUserProjects();
         showAuth = false;
 
-        if (data.action === "register") {
+        if (data.action === 'register') {
           success =
-            "Registration successful! Welcome to the video content service.";
+            'Registration successful! Welcome to the video content service.';
         } else {
-          success = "Login successful!";
+          success = 'Login successful!';
         }
-        setTimeout(() => (success = ""), 3000);
+        setTimeout(() => (success = ''), 3000);
       } else {
-        if (data.action === "login_failed") {
-          error = "Invalid username or password.";
+        if (data.action === 'login_failed') {
+          error = 'Invalid username or password.';
         } else {
-          error = data.message || "Authentication failed";
+          error = data.message || 'Authentication failed';
         }
-        setTimeout(() => (error = ""), 3000);
+        setTimeout(() => (error = ''), 3000);
       }
     } catch (err: unknown) {
-      error = "Network error. Please try again.";
-      setTimeout(() => (error = ""), 3000);
+      error = 'Network error. Please try again.';
+      setTimeout(() => (error = ''), 3000);
       console.log(err);
     }
   }
 
   async function handleLogout() {
     try {
-      const response = await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
 
       if (response.ok) {
         await checkCurrentUser();
         projects = [];
         selectedProject = null;
-        success = "Logged out successfully!";
-        setTimeout(() => (success = ""), 3000);
+        success = 'Logged out successfully!';
+        setTimeout(() => (success = ''), 3000);
       } else {
         const errorData = await response.json();
-        error = errorData.message || "Logout failed";
-        setTimeout(() => (error = ""), 3000);
+        error = errorData.message || 'Logout failed';
+        setTimeout(() => (error = ''), 3000);
       }
     } catch (err: unknown) {
-      error = "Network error during logout";
+      error = 'Network error during logout';
       console.log(err);
-      setTimeout(() => (error = ""), 3000);
+      setTimeout(() => (error = ''), 3000);
     }
   }
 
@@ -187,62 +195,62 @@
     if (!user || !newProjectName.trim()) return;
 
     try {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newProjectName.trim(),
-          title: newProjectTitle.trim() || newProjectName.trim(),
-        }),
+          title: newProjectTitle.trim() || newProjectName.trim()
+        })
       });
 
       if (response.ok) {
         await loadUserProjects();
         showCreateProject = false;
-        newProjectName = "";
-        newProjectTitle = "";
-        success = "Project created successfully!";
-        setTimeout(() => (success = ""), 3000);
+        newProjectName = '';
+        newProjectTitle = '';
+        success = 'Project created successfully!';
+        setTimeout(() => (success = ''), 3000);
       } else {
         const errorData = await response.json();
-        error = errorData.message || "Failed to create project";
-        setTimeout(() => (error = ""), 3000);
+        error = errorData.message || 'Failed to create project';
+        setTimeout(() => (error = ''), 3000);
       }
     } catch (err) {
-      error = "Network error";
+      error = 'Network error';
       console.log(err);
-      setTimeout(() => (error = ""), 3000);
+      setTimeout(() => (error = ''), 3000);
     }
   }
 
   async function copyProject(project: Project) {
     try {
       const response = await fetch(`/api/projects/${project.id}/copy`, {
-        method: "POST",
+        method: 'POST'
       });
 
       if (response.ok) {
         await loadUserProjects();
         const newProject = await response.json();
         selectedProject = newProject;
-        activeTab = "project-details";
-        success = "Project copied successfully!";
-        setTimeout(() => (success = ""), 3000);
+        activeTab = 'project-details';
+        success = 'Project copied successfully!';
+        setTimeout(() => (success = ''), 3000);
       } else {
-        error = "Failed to copy project";
-        setTimeout(() => (error = ""), 3000);
+        error = 'Failed to copy project';
+        setTimeout(() => (error = ''), 3000);
       }
     } catch (err) {
-      error = "Network error";
+      error = 'Network error';
       console.log(err);
-      setTimeout(() => (error = ""), 3000);
+      setTimeout(() => (error = ''), 3000);
     }
   }
 
   async function deleteProject(projectId: string) {
     try {
       const response = await fetch(`/api/projects/${projectId}`, {
-        method: "DELETE",
+        method: 'DELETE'
       });
 
       if (response.ok) {
@@ -250,56 +258,71 @@
         if (selectedProject?.id === projectId) {
           selectedProject = null;
         }
-        success = "Project deleted successfully!";
-        setTimeout(() => (success = ""), 3000);
+        success = 'Project deleted successfully!';
+        setTimeout(() => (success = ''), 3000);
       } else {
-        error = "Failed to delete project";
-        setTimeout(() => (error = ""), 3000);
+        error = 'Failed to delete project';
+        setTimeout(() => (error = ''), 3000);
       }
     } catch (err) {
-      error = "Network error";
+      error = 'Network error';
       console.log(err);
-      setTimeout(() => (error = ""), 3000);
+      setTimeout(() => (error = ''), 3000);
     }
   }
 
   function selectProject(project: Project) {
     selectedProject = project;
-    activeTab = "project-details";
+    activeTab = 'project-details';
   }
 
   async function generateVideo() {
     if (!selectedProject) return;
 
     generatingVideo = true;
-    generationLogs = "";
+    generationLogs = '';
     showLogs = true;
+
+    console.log('🎬 Starting video generation for project:', selectedProject.id);
+
+    // Start polling for log updates
+    startLogPolling(selectedProject.id);
 
     try {
       const response = await fetch(
         `/api/projects/${selectedProject.id}/generate`,
         {
-          method: "POST",
-        },
+          method: 'POST'
+        }
       );
+
+      console.log('📡 Generate API response:', response.status);
 
       if (response.ok) {
         await response.json();
         // Handle video generation response
-        success = "Video generation started!";
-        setTimeout(() => (success = ""), 3000);
+        success = 'Video generation started!';
+        setTimeout(() => (success = ''), 3000);
       } else {
         const errorData = await response.json();
-        error = errorData.message || "Video generation failed";
-        setTimeout(() => (error = ""), 3000);
+        error = errorData.message || 'Video generation failed';
+        setTimeout(() => (error = ''), 3000);
       }
     } catch (err) {
-      error = "Network error during video generation";
+      error = 'Network error during video generation';
       console.log(err);
-      setTimeout(() => (error = ""), 3000);
-    } finally {
-      generatingVideo = false;
+      setTimeout(() => (error = ''), 3000);
     }
+
+    // Don't stop polling immediately - let it run for a while to capture logs
+    console.log('⏳ Video generation API call completed, keeping polling active...');
+
+    // Stop polling after a reasonable timeout (e.g., 5 minutes)
+    setTimeout(() => {
+      console.log('⏰ Stopping log polling due to timeout');
+      generatingVideo = false;
+      stopLogPolling();
+    }, 5 * 60 * 1000); // 5 minutes
   }
 
   async function uploadMedia() {
@@ -308,38 +331,121 @@
     isUploading = true;
     try {
       const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("level", uploadLevel);
-      console.log("=-======", uploadLevel);
+      formData.append('file', selectedFile);
+      formData.append('level', uploadLevel);
+      console.log('=-======', uploadLevel);
 
-      const response = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
+      const response = await fetch('/api/media/upload', {
+        method: 'POST',
+        body: formData
       });
 
       if (response.ok) {
         // Dispatch a custom event to notify MediaTab of successful upload
         window.dispatchEvent(
-          new CustomEvent("mediaUploadComplete", {
-            detail: { level: uploadLevel },
-          }),
+          new CustomEvent('mediaUploadComplete', {
+            detail: { level: uploadLevel }
+          })
         );
 
         await loadUserProjects(); // Refresh if needed
-        success = "Media uploaded successfully!";
-        setTimeout(() => (success = ""), 3000);
+        success = 'Media uploaded successfully!';
+        setTimeout(() => (success = ''), 3000);
         selectedFile = null;
       } else {
         const errorData = await response.json();
-        error = errorData.message || "Upload failed";
-        setTimeout(() => (error = ""), 3000);
+        error = errorData.message || 'Upload failed';
+        setTimeout(() => (error = ''), 3000);
       }
     } catch (err) {
-      error = "Network error during upload";
+      error = 'Network error during upload';
       console.log(err);
-      setTimeout(() => (error = ""), 3000);
+      setTimeout(() => (error = ''), 3000);
     } finally {
       isUploading = false;
+    }
+  }
+
+  // Function to fetch logs from the API
+  async function fetchLogs(projectId: string): Promise<string> {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/log`);
+      console.log(response);
+      if (response.ok) {
+        return await response.text();
+      } else {
+        console.warn('Failed to fetch logs:', response.status);
+        return generationLogs; // Return current logs if fetch fails
+      }
+    } catch (err) {
+      console.error('Error fetching logs:', err);
+      return generationLogs; // Return current logs if fetch fails
+    }
+  }
+
+  // Function to fetch project status
+  async function fetchProjectStatus(projectId: string): Promise<{ progressStep: string; progressResult?: string }> {
+    try {
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (response.ok) {
+        const project = await response.json();
+        return {
+          progressStep: project.progressStep || 'unknown',
+          progressResult: project.progressResult
+        };
+      }
+      return { progressStep: 'unknown' };
+    } catch (err) {
+      console.error('Error fetching project status:', err);
+      return { progressStep: 'unknown' };
+    }
+  }
+
+  // Function to start polling for log updates and status
+  function startLogPolling(projectId: string) {
+    console.log('🔄 Starting log polling for project:', projectId);
+    // Clear any existing polling
+    stopLogPolling();
+
+    // Start polling every 2 seconds
+    logPollingInterval = setInterval(async () => {
+      console.log('📡 Polling for logs and status...');
+
+      // Fetch logs
+      const newLogs = await fetchLogs(projectId);
+      if (newLogs !== generationLogs) {
+        console.log('📝 Updating generationLogs');
+        generationLogs = newLogs;
+      }
+
+      // Fetch project status
+      const status = await fetchProjectStatus(projectId);
+      console.log('📊 Project status:', status.progressStep);
+
+      // Check if generation is complete
+      if (status.progressStep === 'complete' || status.progressStep === 'error') {
+        console.log('✅ Video generation completed with status:', status.progressStep);
+        generatingVideo = false;
+        stopLogPolling();
+
+        if (status.progressStep === 'complete') {
+          success = 'Video generation completed successfully!';
+        } else {
+          error = 'Video generation failed. Check logs for details.';
+        }
+        setTimeout(() => {
+          success = '';
+          error = '';
+        }, 5000);
+      }
+    }, 2000);
+  }
+
+  // Function to stop polling for log updates
+  function stopLogPolling() {
+    if (logPollingInterval) {
+      clearInterval(logPollingInterval);
+      logPollingInterval = null;
     }
   }
 </script>
@@ -377,29 +483,29 @@
       <div class="flex rounded-lg bg-gray-100/50 p-1">
         <button
           class="flex-1 rounded-md px-4 py-2 transition-all duration-200"
-          class:bg-white={activeTab === "projects"}
-          class:text-gray-900={activeTab === "projects"}
-          class:text-gray-600={activeTab !== "projects"}
-          onclick={() => (activeTab = "projects")}
+          class:bg-white={activeTab === 'projects'}
+          class:text-gray-900={activeTab === 'projects'}
+          class:text-gray-600={activeTab !== 'projects'}
+          onclick={() => (activeTab = 'projects')}
         >
           Projects
         </button>
         <button
           class="flex-1 rounded-md px-4 py-2 transition-all duration-200"
-          class:bg-white={activeTab === "media"}
-          class:text-gray-900={activeTab === "media"}
-          class:text-gray-600={activeTab !== "media"}
-          onclick={() => (activeTab = "media")}
+          class:bg-white={activeTab === 'media'}
+          class:text-gray-900={activeTab === 'media'}
+          class:text-gray-600={activeTab !== 'media'}
+          onclick={() => (activeTab = 'media')}
         >
           Media Library
         </button>
         {#if selectedProject}
           <button
             class="flex-1 rounded-md px-4 py-2 transition-all duration-200"
-            class:bg-white={activeTab === "project-details"}
-            class:text-gray-900={activeTab === "project-details"}
-            class:text-gray-600={activeTab !== "project-details"}
-            onclick={() => (activeTab = "project-details")}
+            class:bg-white={activeTab === 'project-details'}
+            class:text-gray-900={activeTab === 'project-details'}
+            class:text-gray-600={activeTab !== 'project-details'}
+            onclick={() => (activeTab = 'project-details')}
           >
             Project Details
           </button>
@@ -407,7 +513,7 @@
       </div>
     </div>
 
-    {#if activeTab === "projects"}
+    {#if activeTab === 'projects'}
       <ProjectsTab
         {projects}
         onSelectProject={selectProject}
@@ -415,7 +521,7 @@
         onDeleteProject={deleteProject}
         onCreateProject={() => (showCreateProject = true)}
       />
-    {:else if activeTab === "media"}
+    {:else if activeTab === 'media'}
       <MediaTab
         bind:this={mediaTabRef}
         {selectedFile}
@@ -425,7 +531,7 @@
         onMediaSelect={(file: File) => (selectedFile = file)}
         onUpload={uploadMedia}
         onPreviewMedia={(media: {
-          type: "image" | "video";
+          type: 'image' | 'video';
           url: string;
           name: string;
           poster?: string;
@@ -434,7 +540,7 @@
         onMediaSelectionDone={() => {}}
       />
       level: {uploadLevel}
-    {:else if activeTab === "project-details" && selectedProject}
+    {:else if activeTab === 'project-details' && selectedProject}
       <ProjectDetailsTab
         {selectedProject}
         {generatingVideo}
@@ -461,8 +567,8 @@
     onCreateProject={createProject}
     onClose={() => {
       showCreateProject = false;
-      newProjectName = "";
-      newProjectTitle = "";
+      newProjectName = '';
+      newProjectTitle = '';
     }}
   />
 

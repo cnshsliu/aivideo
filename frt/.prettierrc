@@ -1,0 +1,10 @@
+{
+  "plugins": ["prettier-plugin-svelte"],
+  "svelteBracketNewLine": true,
+  "svelteStrictMode": false,
+  "printWidth": 80,
+  "singleQuote": true,
+    "bracketSameLine": false,
+    "trailingComma": "none",
+    "overrides": [{ "files": "*.svelte", "options": { "parser": "svelte" } }]
+  }

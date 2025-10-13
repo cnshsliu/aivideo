@@ -16,6 +16,7 @@ import importlib.util
 # Load environment variables (optional)
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     # dotenv not available, continue without it
@@ -24,6 +25,7 @@ except ImportError:
 # Configure APIs (optional)
 try:
     import dashscope
+
     dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
 except ImportError:
     # dashscope not available, continue without it
@@ -82,6 +84,9 @@ class Config:
         media_folder = self.project_folder / "media"
         if not any(media_folder.iterdir()):
             self.logger.warning(f"Media folder is empty: {media_folder}")
+            raise ValueError(
+                f"Media folder is empty: {media_folder}, no media files found"
+            )
 
     def get_llm_model_config(self, provider: str) -> Optional[Dict[str, Any]]:
         """Get model configuration for specified LLM provider"""

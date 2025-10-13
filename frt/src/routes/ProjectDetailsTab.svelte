@@ -51,7 +51,7 @@
     onShowMaterialsModal: (onCloseCallback?: () => void) => void;
     onUpdateProject: (project: Project) => void;
     onPreviewMedia: (media: {
-      type: "image" | "video";
+      type: 'image' | 'video';
       url: string;
       name: string;
       poster?: string;
@@ -66,11 +66,11 @@
     onGenerateVideo,
     onShowMaterialsModal,
     onUpdateProject,
-    onPreviewMedia,
+    onPreviewMedia
   }: Props = $props();
 
   let editingAliasId = $state<string | null>(null);
-  let editingAliasValue = $state("");
+  let editingAliasValue = $state('');
   let loadingMaterials = $state(false);
   let projectMaterials = $state<Material[]>([]);
   let generatingStaticSubtitles = $state(false);
@@ -78,21 +78,21 @@
   // Computed property to sort project materials
   let sortedProjectMaterials = $derived(
     [...projectMaterials].sort((a, b) => {
-      const aliasA = (a.alias || "").trim().toLowerCase();
-      const aliasB = (b.alias || "").trim().toLowerCase();
+      const aliasA = (a.alias || '').trim().toLowerCase();
+      const aliasB = (b.alias || '').trim().toLowerCase();
 
       // Materials with alias starting with 'start' come first
-      const isStartA = aliasA.startsWith("start");
-      const isStartB = aliasB.startsWith("start");
+      const isStartA = aliasA.startsWith('start');
+      const isStartB = aliasB.startsWith('start');
 
       if (isStartA && !isStartB) return -1;
       if (!isStartA && isStartB) return 1;
 
       // Materials with alias starting with 'close' or 'closing' come last
       const isCloseA =
-        aliasA.startsWith("close") || aliasA.startsWith("closing");
+        aliasA.startsWith('close') || aliasA.startsWith('closing');
       const isCloseB =
-        aliasB.startsWith("close") || aliasB.startsWith("closing");
+        aliasB.startsWith('close') || aliasB.startsWith('closing');
 
       if (isCloseA && !isCloseB) return 1;
       if (!isCloseA && isCloseB) return -1;
@@ -103,14 +103,14 @@
 
       // Other materials sorted alphabetically by alias
       return aliasA.localeCompare(aliasB);
-    }),
+    })
   );
 
   // Log sorted materials' aliases for debugging
   $effect(() => {
     console.log(
-      "Sorted materials aliases:",
-      sortedProjectMaterials.map((m) => m.alias),
+      'Sorted materials aliases:',
+      sortedProjectMaterials.map((m) => m.alias)
     );
   });
 
@@ -120,16 +120,16 @@
     loadingMaterials = true;
     try {
       const response = await fetch(
-        `/api/projects/${selectedProject.id}/materials`,
+        `/api/projects/${selectedProject.id}/materials`
       );
       if (response.ok) {
         projectMaterials = await response.json();
       } else {
-        console.error("Failed to load project materials");
+        console.error('Failed to load project materials');
         projectMaterials = [];
       }
     } catch (err) {
-      console.error("Error loading project materials:", err);
+      console.error('Error loading project materials:', err);
       projectMaterials = [];
     } finally {
       loadingMaterials = false;
@@ -138,44 +138,44 @@
 
   function getMediaIcon(type: string): string {
     switch (type) {
-      case "image":
-        return "🖼️";
-      case "video":
-        return "🎥";
-      case "audio":
-        return "🎵";
+      case 'image':
+        return '🖼️';
+      case 'video':
+        return '🎥';
+      case 'audio':
+        return '🎵';
       default:
-        return "📄";
+        return '📄';
     }
   }
 
   $effect(() => {
     if (selectedProject) {
       loadProjectMaterials();
-      staticSubtitleContent = selectedProject.staticSubtitle || "";
-      promptContent = selectedProject.prompt || "";
-      descContent = selectedProject.desc || "";
-      briefContent = selectedProject.brief || "";
+      staticSubtitleContent = selectedProject.staticSubtitle || '';
+      promptContent = selectedProject.prompt || '';
+      descContent = selectedProject.desc || '';
+      briefContent = selectedProject.brief || '';
       // Initialize title settings from selectedProject
       keepTitle = selectedProject.keepTitle ?? true;
       addTimestampToTitle = selectedProject.addTimestampToTitle ?? false;
       videoTitle = selectedProject.video_title ?? selectedProject.title;
-      titleFont = selectedProject.titleFont ?? "Hiragino Sans GB";
+      titleFont = selectedProject.titleFont ?? 'Hiragino Sans GB';
       titleFontSize = selectedProject.titleFontSize ?? 72;
       titlePosition = selectedProject.titlePosition ?? 20;
       // Initialize media settings from selectedProject
-      sortOrder = selectedProject.sortOrder ?? "alphnum";
+      sortOrder = selectedProject.sortOrder ?? 'alphnum';
       keepClipLength = selectedProject.keepClipLength ?? false;
       clipNum = selectedProject.clipNum ?? null;
       // Initialize subtitle settings from selectedProject
-      subtitleFont = selectedProject.subtitleFont ?? "Hiragino Sans GB";
+      subtitleFont = selectedProject.subtitleFont ?? 'Hiragino Sans GB';
       subtitleFontSize = selectedProject.subtitleFontSize ?? 48;
       subtitlePosition = selectedProject.subtitlePosition ?? 80;
       genSubtitle = selectedProject.genSubtitle ?? false;
       genVoice = selectedProject.genVoice ?? false;
-      llmProvider = selectedProject.llmProvider ?? "qwen";
+      llmProvider = selectedProject.llmProvider ?? 'qwen';
       // Initialize audio settings from selectedProject
-      bgmFile = selectedProject.bgmFile ?? "";
+      bgmFile = selectedProject.bgmFile ?? '';
       bgmFadeIn = selectedProject.bgmFadeIn ?? 3.0;
       bgmFadeOut = selectedProject.bgmFadeOut ?? 3.0;
       bgmVolume = selectedProject.bgmVolume ?? 0.3;
@@ -183,33 +183,33 @@
   });
 
   let isEditingTitle = $state(false);
-  let editedTitle = $state("");
-  let staticSubtitleContent = $state(selectedProject.staticSubtitle || "");
-  let promptContent = $state(selectedProject.prompt || "");
-  let descContent = $state(selectedProject.desc || "");
-  let briefContent = $state(selectedProject.brief || "");
+  let editedTitle = $state('');
+  let staticSubtitleContent = $state(selectedProject.staticSubtitle || '');
+  let promptContent = $state(selectedProject.prompt || '');
+  let descContent = $state(selectedProject.desc || '');
+  let briefContent = $state(selectedProject.brief || '');
   // Title settings state variables
   let keepTitle = $state(selectedProject.keepTitle ?? true);
   let addTimestampToTitle = $state(
-    selectedProject.addTimestampToTitle ?? false,
+    selectedProject.addTimestampToTitle ?? false
   );
   let videoTitle = $state(selectedProject.video_title ?? selectedProject.title);
-  let titleFont = $state(selectedProject.titleFont ?? "Hiragino Sans GB");
+  let titleFont = $state(selectedProject.titleFont ?? 'Hiragino Sans GB');
   let titleFontSize = $state(selectedProject.titleFontSize ?? 72);
   let titlePosition = $state(selectedProject.titlePosition ?? 20);
   // Media settings state variables
-  let sortOrder = $state(selectedProject.sortOrder ?? "alphnum");
+  let sortOrder = $state(selectedProject.sortOrder ?? 'alphnum');
   let keepClipLength = $state(selectedProject.keepClipLength ?? false);
   let clipNum = $state(selectedProject.clipNum ?? null);
   // Subtitle settings state variables
-  let subtitleFont = $state(selectedProject.subtitleFont ?? "Hiragino Sans GB");
+  let subtitleFont = $state(selectedProject.subtitleFont ?? 'Hiragino Sans GB');
   let subtitleFontSize = $state(selectedProject.subtitleFontSize ?? 48);
   let subtitlePosition = $state(selectedProject.subtitlePosition ?? 80);
   let genSubtitle = $state(selectedProject.genSubtitle ?? false);
   let genVoice = $state(selectedProject.genVoice ?? false);
-  let llmProvider = $state(selectedProject.llmProvider ?? "qwen");
+  let llmProvider = $state(selectedProject.llmProvider ?? 'qwen');
   // Audio settings state variables
-  let bgmFile = $state(selectedProject.bgmFile ?? "");
+  let bgmFile = $state(selectedProject.bgmFile ?? '');
   let bgmFadeIn = $state(selectedProject.bgmFadeIn ?? 3.0);
   let bgmFadeOut = $state(selectedProject.bgmFadeOut ?? 3.0);
   let bgmVolume = $state(selectedProject.bgmVolume ?? 0.3);
@@ -221,20 +221,20 @@
   // Load BGM files
   async function loadBgmFiles() {
     try {
-      const response = await fetch("/api/media/file/public/bgm");
+      const response = await fetch('/api/media/file/public/bgm');
       if (response.ok) {
         const files = await response.json();
         bgmFiles = files.filter(
           (file: string) =>
-            file.endsWith(".mp3") ||
-            file.endsWith(".wav") ||
-            file.endsWith(".ogg"),
+            file.endsWith('.mp3') ||
+            file.endsWith('.wav') ||
+            file.endsWith('.ogg')
         );
       } else {
-        console.error("Failed to load BGM files, status:", response.status);
+        console.error('Failed to load BGM files, status:', response.status);
       }
     } catch (err) {
-      console.error("Error loading BGM files:", err);
+      console.error('Error loading BGM files:', err);
     }
   }
 
@@ -270,7 +270,7 @@
     };
 
     audioPlayer.play().catch((err) => {
-      console.error("Error playing audio:", err);
+      console.error('Error playing audio:', err);
     });
   }
 
@@ -303,7 +303,7 @@
         };
 
         audioPlayer.play().catch((err) => {
-          console.error("Error playing audio:", err);
+          console.error('Error playing audio:', err);
         });
       }
     } else {
@@ -320,35 +320,35 @@
   async function saveTitle() {
     try {
       const response = await fetch(`/api/projects/${selectedProject.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: editedTitle,
           name: selectedProject.name,
-          video_title: videoTitle,
+          video_title: videoTitle
         }),
-        credentials: "include",
+        credentials: 'include'
       });
       if (response.ok) {
         onUpdateProject({
           ...selectedProject,
           title: editedTitle,
-          video_title: videoTitle,
+          video_title: videoTitle
         });
         isEditingTitle = false;
       } else {
-        let errorMessage = "Failed to update title";
+        let errorMessage = 'Failed to update title';
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
         } catch (e) {
           // If JSON parsing fails, use the status text
-          errorMessage = e ? response.statusText || errorMessage : "";
+          errorMessage = e ? response.statusText || errorMessage : '';
         }
         alert(errorMessage);
       }
     } catch (err) {
-      alert("Network error");
+      alert('Network error');
       console.error(err);
     }
   }
@@ -360,20 +360,20 @@
   async function loadContent() {
     try {
       const response = await fetch(`/api/projects/${selectedProject.id}`, {
-        credentials: "include",
+        credentials: 'include'
       });
       if (response.ok) {
         const project = await response.json();
-        promptContent = project.prompt || "";
-        staticSubtitleContent = project.staticSubtitle || "";
-        descContent = project.desc || "";
-        briefContent = project.brief || "";
+        promptContent = project.prompt || '';
+        staticSubtitleContent = project.staticSubtitle || '';
+        descContent = project.desc || '';
+        briefContent = project.brief || '';
         onUpdateProject(project);
       } else {
-        alert("Failed to load content");
+        alert('Failed to load content');
       }
     } catch (err) {
-      alert("Network error");
+      alert('Network error');
       console.error(err);
     }
   }
@@ -382,10 +382,10 @@
     try {
       // genSubttile用于控制python命令行运行时，是否生成字幕
       // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
-      genSubtitle=false;
+      genSubtitle = false;
       const response = await fetch(`/api/projects/${selectedProject.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: selectedProject.title,
           video_title: videoTitle,
@@ -414,9 +414,9 @@
           bgmFile,
           bgmFadeIn,
           bgmFadeOut,
-          bgmVolume,
+          bgmVolume
         }),
-        credentials: "include",
+        credentials: 'include'
       });
       if (response.ok) {
         onUpdateProject({
@@ -446,22 +446,22 @@
           bgmFile,
           bgmFadeIn,
           bgmFadeOut,
-          bgmVolume,
+          bgmVolume
         });
         console.log(selectedProject);
       } else {
-        let errorMessage = "Failed to save content";
+        let errorMessage = 'Failed to save content';
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
         } catch (e) {
           // If JSON parsing fails, use the status text
-          errorMessage = e ? response.statusText || errorMessage : "";
+          errorMessage = e ? response.statusText || errorMessage : '';
         }
         alert(errorMessage);
       }
     } catch (err) {
-      alert("Network error");
+      alert('Network error');
       console.error(err);
     }
   }
@@ -471,18 +471,18 @@
       const response = await fetch(
         `/api/projects/${selectedProject.id}/materials?materialId=${materialId}`,
         {
-          method: "DELETE",
-          credentials: "include",
-        },
+          method: 'DELETE',
+          credentials: 'include'
+        }
       );
       if (response.ok) {
         loadProjectMaterials();
       } else {
         const errorData = await response.json();
-        alert(errorData.message || "Failed to remove material");
+        alert(errorData.message || 'Failed to remove material');
       }
     } catch (err) {
-      alert("Network error");
+      alert('Network error');
       console.error(err);
     }
   }
@@ -490,7 +490,7 @@
   function startEditingAlias(
     materialId: string,
     currentAlias: string,
-    fileName: string,
+    fileName: string
   ) {
     editingAliasId = materialId;
     if (!currentAlias || !currentAlias.trim()) {
@@ -507,36 +507,36 @@
       const response = await fetch(
         `/api/projects/${selectedProject.id}/materials`,
         {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             materialId: editingAliasId,
-            alias: editingAliasValue.trim(),
-          }),
-        },
+            alias: editingAliasValue.trim()
+          })
+        }
       );
 
       if (response.ok) {
         const updatedMaterial = await response.json();
         // Update local state
         projectMaterials = projectMaterials.map((m: Material) =>
-          m.id === editingAliasId ? updatedMaterial : m,
+          m.id === editingAliasId ? updatedMaterial : m
         );
         editingAliasId = null;
-        editingAliasValue = "";
+        editingAliasValue = '';
       } else {
-        alert("Failed to update alias");
+        alert('Failed to update alias');
       }
     } catch (err) {
-      alert("Network error");
+      alert('Network error');
       console.error(err);
     }
   }
 
   function cancelEditingAlias() {
     editingAliasId = null;
-    editingAliasValue = "";
+    editingAliasValue = '';
   }
 
   // Function to reset all settings to their default values
@@ -545,25 +545,25 @@
     keepTitle = true;
     addTimestampToTitle = false;
     videoTitle = selectedProject.video_title ?? selectedProject.title;
-    titleFont = "Hiragino Sans GB";
+    titleFont = 'Hiragino Sans GB';
     titleFontSize = 72; // Correct default value
     titlePosition = 20; // Correct default value
 
     // Media Settings defaults
-    sortOrder = "alphnum";
+    sortOrder = 'alphnum';
     keepClipLength = false;
     clipNum = null;
 
     // Subtitle Settings defaults
-    subtitleFont = "Hiragino Sans GB";
+    subtitleFont = 'Hiragino Sans GB';
     subtitleFontSize = 48; // Correct default value
     subtitlePosition = 80; // Correct default value
     genSubtitle = false; // Correct default value
     genVoice = false;
-    llmProvider = "qwen";
+    llmProvider = 'qwen';
 
     // Audio Settings defaults
-    bgmFile = "";
+    bgmFile = '';
     bgmFadeIn = 3.0; // Correct default value
     bgmFadeOut = 3.0; // Correct default value
     bgmVolume = 0.3; // Correct default value
@@ -575,7 +575,7 @@
   });
 
   // Tab state
-  let activeTab = $state("video-title");
+  let activeTab = $state('video-title');
 
   // Function to get project result video URL
   function getResultVideoUrl(projectId: string): string {
@@ -585,15 +585,15 @@
   // Function to download the result video
   function downloadResultVideo(projectId: string): void {
     const downloadUrl = `/api/projects/${projectId}/result?download=true`;
-    window.open(downloadUrl, "_blank");
+    window.open(downloadUrl, '_blank');
   }
 
   // Function to preview the result video
   function previewResultVideo(projectId: string): void {
     onPreviewMedia({
-      type: "video",
+      type: 'video',
       url: getResultVideoUrl(projectId),
-      name: "Result Video",
+      name: 'Result Video'
     });
   }
 
@@ -601,32 +601,61 @@
   async function generateStaticSubtitles(): Promise<void> {
     // genSubttile用于控制python命令行运行时，是否生成字幕
     // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
-    genSubtitle=false;
+    genSubtitle = false;
     generatingStaticSubtitles = true;
     try {
-      const response = await fetch(`/api/projects/${selectedProject.id}/generate-static-subtitles`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          folder: selectedProject.name,
-        }),
-        credentials: "include",
+      const response = await fetch(
+        `/api/projects/${selectedProject.id}/generate-static-subtitles`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            folder: selectedProject.name
+          }),
+          credentials: 'include'
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Static subtitles generated:', data);
+        // Preserve current prompt content before reloading
+        const currentPrompt = promptContent;
+        // Reload content to get updated server state with generated subtitles
+        await loadContent();
+        // Restore the prompt content to preserve unsaved changes
+        promptContent = currentPrompt;
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Failed to generate static subtitles');
+      }
+    } catch (err) {
+      alert('Network error');
+      console.error(err);
+    } finally {
+      generatingStaticSubtitles = false;
+    }
+  }
+
+  // Function to publish result video
+  async function publishResultVideo(projectId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/publish`, {
+        method: 'POST',
+        credentials: 'include'
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Static subtitles generated:", data);
-        // Reload content to get updated server state with generated subtitles
-        await loadContent();
+        console.log('Video published successfully:', data);
+        alert('Video published successfully!');
       } else {
         const errorData = await response.json();
-        alert(errorData.message || "Failed to generate static subtitles");
+        throw new Error(errorData.message || 'Failed to publish video');
       }
     } catch (err) {
-      alert("Network error");
-      console.error(err);
-    } finally {
-      generatingStaticSubtitles = false;
+      console.error('Failed to publish video:', err);
+      alert('Failed to publish video. Check console for details.');
     }
   }
 </script>
@@ -683,7 +712,7 @@
               </button>
             </div>
             <!-- Result video preview and download buttons -->
-            {#if selectedProject.progressStep === "complete" && selectedProject.progressResult}
+            {#if selectedProject.progressStep === 'complete' && selectedProject.progressResult}
               <div class="flex items-center gap-2 ms-5">
                 <button
                   onclick={() => previewResultVideo(selectedProject.id)}
@@ -720,7 +749,7 @@
                   </svg>
                 </button>
                 <button
-                  onclick={() => downloadResultVideo(selectedProject.id)}
+                  onclick={() => publishResultVideo(selectedProject.id)}
                   class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-100 hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   aria-label="Download result video"
                 >
@@ -755,13 +784,13 @@
               <span class="text-sm font-medium">Status: </span>
               <span
                 class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  selectedProject.progressStep === "complete"
-                    ? "bg-green-100 text-green-800"
-                    : selectedProject.progressStep === "error"
-                      ? "bg-red-100 text-red-800"
-                      : selectedProject.progressStep === "running"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-blue-100 text-blue-800"
+                  selectedProject.progressStep === 'complete'
+                    ? 'bg-green-100 text-green-800'
+                    : selectedProject.progressStep === 'error'
+                      ? 'bg-red-100 text-red-800'
+                      : selectedProject.progressStep === 'running'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-blue-100 text-blue-800'
                 }`}
               >
                 {selectedProject.progressStep}
@@ -796,11 +825,13 @@
           </button>
         </div>
         <button
-          onclick={async ()=>{
-          // genSubttile用于控制python命令行运行时，是否生成字幕
-          // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
-          genSubtitle=false;
-          await saveContent(); onGenerateVideo();}}
+          onclick={async () => {
+            // genSubttile用于控制python命令行运行时，是否生成字幕
+            // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
+            genSubtitle = false;
+            await saveContent();
+            onGenerateVideo();
+          }}
           disabled={generatingVideo}
           class="rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-white transition-all duration-200 hover:from-purple-600 hover:to-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -857,12 +888,12 @@
         <span class="text-sm font-medium text-gray-700">Generate Voice</span>
         <button
           onclick={() => (genVoice = !genVoice)}
-          class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${genVoice ? "bg-blue-600" : "bg-gray-200"}`}
+          class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${genVoice ? 'bg-blue-600' : 'bg-gray-200'}`}
           aria-pressed={genVoice}
           aria-label="Toggle generate voice"
         >
           <span
-            class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${genVoice ? "translate-x-6" : "translate-x-1"}`}
+            class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${genVoice ? 'translate-x-6' : 'translate-x-1'}`}
           ></span>
         </button>
       </div>
@@ -945,26 +976,26 @@
     >
       <div class="flex flex-wrap gap-2 mb-6">
         <button
-          class={`px-4 py-2 rounded-lg transition-colors ${activeTab === "video-title" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-          onclick={() => (activeTab = "video-title")}
+          class={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'video-title' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+          onclick={() => (activeTab = 'video-title')}
         >
           Video Title Settings
         </button>
         <button
-          class={`px-4 py-2 rounded-lg transition-colors ${activeTab === "subtitle" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-          onclick={() => (activeTab = "subtitle")}
+          class={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'subtitle' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+          onclick={() => (activeTab = 'subtitle')}
         >
           Subtitle Settings
         </button>
         <button
-          class={`px-4 py-2 rounded-lg transition-colors ${activeTab === "media" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-          onclick={() => (activeTab = "media")}
+          class={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'media' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+          onclick={() => (activeTab = 'media')}
         >
           Media Settings
         </button>
         <button
-          class={`px-4 py-2 rounded-lg transition-colors ${activeTab === "audio" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-          onclick={() => (activeTab = "audio")}
+          class={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'audio' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+          onclick={() => (activeTab = 'audio')}
         >
           Audio Settings
         </button>
@@ -973,7 +1004,7 @@
       <!-- Tab Content -->
       <div class="mt-6">
         <!-- Video Title Settings Tab -->
-        {#if activeTab === "video-title"}
+        {#if activeTab === 'video-title'}
           <div class="space-y-4">
             <div class="space-y-4">
               <!-- Keep Title -->
@@ -987,12 +1018,12 @@
                 <button
                   id="keep-title"
                   onclick={() => (keepTitle = !keepTitle)}
-                  class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${keepTitle ? "bg-blue-600" : "bg-gray-200"}`}
+                  class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${keepTitle ? 'bg-blue-600' : 'bg-gray-200'}`}
                   aria-pressed={keepTitle}
                   aria-label="Toggle keep title"
                 >
                   <span
-                    class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${keepTitle ? "translate-x-6" : "translate-x-1"}`}
+                    class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${keepTitle ? 'translate-x-6' : 'translate-x-1'}`}
                   ></span>
                 </button>
               </div>
@@ -1008,12 +1039,12 @@
                 <button
                   id="add-timestamp-to-title"
                   onclick={() => (addTimestampToTitle = !addTimestampToTitle)}
-                  class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${addTimestampToTitle ? "bg-blue-600" : "bg-gray-200"}`}
+                  class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${addTimestampToTitle ? 'bg-blue-600' : 'bg-gray-200'}`}
                   aria-pressed={addTimestampToTitle}
                   aria-label="Toggle add timestamp to title"
                 >
                   <span
-                    class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${addTimestampToTitle ? "translate-x-6" : "translate-x-1"}`}
+                    class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${addTimestampToTitle ? 'translate-x-6' : 'translate-x-1'}`}
                   ></span>
                 </button>
               </div>
@@ -1088,7 +1119,7 @@
         {/if}
 
         <!-- Subtitle Settings Tab -->
-        {#if activeTab === "subtitle"}
+        {#if activeTab === 'subtitle'}
           <div class="space-y-4">
             <div class="space-y-4">
               <!-- Subtitle Font -->
@@ -1161,7 +1192,7 @@
         {/if}
 
         <!-- Media Settings Tab -->
-        {#if activeTab === "media"}
+        {#if activeTab === 'media'}
           <div class="space-y-4">
             <div class="space-y-4">
               <!-- Sort Order -->
@@ -1193,12 +1224,12 @@
                 <button
                   id="keep-clip-length"
                   onclick={() => (keepClipLength = !keepClipLength)}
-                  class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${keepClipLength ? "bg-blue-600" : "bg-gray-200"}`}
+                  class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${keepClipLength ? 'bg-blue-600' : 'bg-gray-200'}`}
                   aria-pressed={keepClipLength}
                   aria-label="Toggle keep clip length"
                 >
                   <span
-                    class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${keepClipLength ? "translate-x-6" : "translate-x-1"}`}
+                    class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${keepClipLength ? 'translate-x-6' : 'translate-x-1'}`}
                   ></span>
                 </button>
               </div>
@@ -1224,7 +1255,7 @@
         {/if}
 
         <!-- Audio Settings Tab -->
-        {#if activeTab === "audio"}
+        {#if activeTab === 'audio'}
           <div class="space-y-4">
             <div class="space-y-4">
               <!-- BGM File Selector -->
@@ -1255,12 +1286,12 @@
                     class="flex items-center justify-center rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     disabled={!bgmFile}
                     aria-label={isPlaying
-                      ? "Stop playback"
-                      : "Play selected music"}
+                      ? 'Stop playback'
+                      : 'Play selected music'}
                   >
                     <svg
                       class="h-5 w-5"
-                      fill={isPlaying ? "currentColor" : "none"}
+                      fill={isPlaying ? 'currentColor' : 'none'}
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
@@ -1383,31 +1414,9 @@
             <span>Loading materials...</span>
           </div>
         </div>
-      {:else if projectMaterials.length === 0}
-        <div class="col-span-full text-center py-8 text-gray-500">
-          <div class="text-gray-400 mb-2">
-            <svg
-              class="mx-auto h-12 w-12"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-              ></path>
-            </svg>
-          </div>
-          <p>No materials added to this project yet</p>
-          <p class="text-sm mt-1">
-            Click "Manage Materials" to add files from your media library
-          </p>
-        </div>
       {:else}
         {#each sortedProjectMaterials as material (material.id)}
-          {@const url = `/api/media/file/${material.relativePath.split("/")[0] === "public" ? "public" : "user"}/${material.relativePath.split("/").slice(2).join("/")}`}
+          {@const url = `/api/media/file/${material.relativePath.split('/')[0] === 'public' ? 'public' : 'user'}/${material.relativePath.split('/').slice(2).join('/')}`}
           <div
             class="group relative w-full overflow-hidden rounded-lg border-2 border-gray-200 bg-white transition-all hover:shadow-md"
           >
@@ -1430,16 +1439,16 @@
                 />
               </svg>
             </button>
-            {#if material.fileType === "image"}
+            {#if material.fileType === 'image'}
               <div class="relative">
                 <button
                   type="button"
                   class="w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   onclick={() =>
                     onPreviewMedia({
-                      type: "image",
+                      type: 'image',
                       url,
-                      name: material.fileName,
+                      name: material.fileName
                     })}
                   aria-label={`Preview ${material.fileName}`}
                 >
@@ -1453,16 +1462,16 @@
                   </div>
                 </button>
               </div>
-            {:else if material.fileType === "video"}
+            {:else if material.fileType === 'video'}
               <div class="relative">
                 <button
                   type="button"
                   class="w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   onclick={() =>
                     onPreviewMedia({
-                      type: "video",
+                      type: 'video',
                       url,
-                      name: material.fileName,
+                      name: material.fileName
                     })}
                   aria-label={`Preview ${material.fileName}`}
                 >
@@ -1512,8 +1521,8 @@
                 <input
                   bind:value={editingAliasValue}
                   onkeydown={(e) => {
-                    if (e.key === "Enter") saveAlias();
-                    if (e.key === "Escape") cancelEditingAlias();
+                    if (e.key === 'Enter') saveAlias();
+                    if (e.key === 'Escape') cancelEditingAlias();
                   }}
                   onblur={saveAlias}
                   class="w-full text-center border-1 outline-none"
@@ -1526,20 +1535,20 @@
                     startEditingAlias(
                       material.id,
                       material.alias,
-                      material.fileName,
+                      material.fileName
                     )}
                   onkeydown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
+                    if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       startEditingAlias(
                         material.id,
                         material.alias,
-                        material.fileName,
+                        material.fileName
                       );
                     }
                   }}
                   aria-label={`Edit alias for ${material.fileName}`}
-                  >{material.alias ?? "edit alias"}</span
+                  >{material.alias ?? 'edit alias'}</span
                 >
               {/if}
               <p class="text-xs text-gray-500">{material.fileType}</p>
@@ -1551,27 +1560,26 @@
         {/each}
         <div
           class="group relative w-full overflow-hidden rounded-lg border-2 border-gray-200 bg-white transition-all hover:shadow-md flex items-center justify-center"
+          onclick={() => onShowMaterialsModal(() => loadProjectMaterials())}
+          aria-label="Add materials"
+          role="button"
+          onkeydown={null}
+          tabindex={1}
         >
-          <button
-            class="rounded-lg bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600 flex flex-col items-center"
-            onclick={() => onShowMaterialsModal(() => loadProjectMaterials())}
-            aria-label="Manage project materials"
+          <svg
+            class="h-12 w-12"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <svg
-              class="h-12 w-12"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-              ></path>
-            </svg>
-            <span class="mt-2">Manage Materials</span>
-          </button>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+            ></path>
+          </svg>
+          <span class="mt-2">Add materials</span>
         </div>
       {/if}
     </div>

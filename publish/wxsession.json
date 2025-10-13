@@ -1,0 +1,139 @@
+{
+  "cookies": [
+    {
+      "name": "sessionid",
+      "value": "BgAAYQBBEromCBHAOOF1vpnjUThKcnSddPdQGRbNuuCq%2F49od8%2FXHtQCdaYuVGD4L1dBslY1wtwFtA7wkONyL1M4FfiQKRRKPlKIyFL4mxIs",
+      "domain": "channels.weixin.qq.com",
+      "path": "/",
+      "expires": 1794803901.342689,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "wxuin",
+      "value": "3817536631",
+      "domain": "channels.weixin.qq.com",
+      "path": "/",
+      "expires": 1794803901.342746,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://channels.weixin.qq.com",
+      "localStorage": [
+        {
+          "name": "finder_uin",
+          "value": ""
+        },
+        {
+          "name": "__ml::hb_ts",
+          "value": "1760282618606"
+        },
+        {
+          "name": "__ml::page_6c7b12d4-6c7b-47a2-a38b-09222b9dead1",
+          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"8075ee25-67ad-4b02-a970-c497615da17f\",\"step\":1}"
+        },
+        {
+          "name": "__ml::aid",
+          "value": "\"3419cd46-4362-4e68-bfbd-7591450a1147\""
+        },
+        {
+          "name": "__ml::page_b8c6bb92-b970-4070-ab89-2099a03ca67e",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"c7edf130-d372-4722-b158-37a2a0e64d81\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_2d998130-9596-4d05-9010-1bd6145c558e",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"562ce5cf-88f5-4e2f-b380-e19c1ab154a1\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_ed481cb3-3b4c-422b-897f-54681e2df609",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"eba4d129-5b82-460c-8032-8c38722e262f\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_1424bc8d-0636-441a-827d-404c09aaf1a3",
+          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"7e3ed9c7-9cb0-48e4-b739-e55b632f3bc8\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_006e18e9-b065-4215-ad5b-b6599b596514",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"2f396798-47c2-4688-a589-7e4abbc09e40\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_4691805b-22f0-4c94-9693-3c4f49031c69",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"ee624fea-7ffd-4992-bc84-04b140fc12e8\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page",
+          "value": "[\"6c7b12d4-6c7b-47a2-a38b-09222b9dead1\",\"f22ddafd-4154-4fa1-a734-7a87edb90643\",\"6d4177c5-0f74-4b4d-9eed-67bf74065116\",\"b8c6bb92-b970-4070-ab89-2099a03ca67e\",\"1424bc8d-0636-441a-827d-404c09aaf1a3\",\"4691805b-22f0-4c94-9693-3c4f49031c69\",\"fbf48590-e8b6-42fe-8c46-60b81994e92e\",\"2e9b6281-d284-406c-a927-dd32c9d579e4\",\"26578528-0608-4160-a66c-a26e648f222b\",\"006e18e9-b065-4215-ad5b-b6599b596514\",\"5ae58a3c-a2f8-47d4-b30b-73356da7c174\",\"ed481cb3-3b4c-422b-897f-54681e2df609\",\"1c83c747-5332-4ccd-a6db-2048b9b16470\",\"79801d41-1f16-42d5-b8da-ba119d6e2b94\",\"2d998130-9596-4d05-9010-1bd6145c558e\"]"
+        },
+        {
+          "name": "__ml::page_26578528-0608-4160-a66c-a26e648f222b",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"5e3cce9e-0f53-40ef-83ed-372764f0ecbb\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_6d4177c5-0f74-4b4d-9eed-67bf74065116",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"b6850f05-c259-46fd-bc6d-ee6f36ecb3b2\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_1c83c747-5332-4ccd-a6db-2048b9b16470",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"76f6e035-b5a9-4ddd-b15b-f86853c80e5b\",\"step\":1}"
+        },
+        {
+          "name": "__rx::aid",
+          "value": "\"3419cd46-4362-4e68-bfbd-7591450a1147\""
+        },
+        {
+          "name": "__ml::page_fbf48590-e8b6-42fe-8c46-60b81994e92e",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"edeb4043-d6b2-485a-8e75-148f96541676\",\"step\":1}"
+        },
+        {
+          "name": "finder_login_token",
+          "value": ""
+        },
+        {
+          "name": "finder_username",
+          "value": "v2_060000231003b20faec8c6e18c19c5d2cc07ea31b077f8cb8d7389842b4fd984bf7133b5771c@finder"
+        },
+        {
+          "name": "_finger_print_device_id",
+          "value": "6992caedf6de1d2846e3f52cf925f909"
+        },
+        {
+          "name": "MICRO_VISITED_NAME",
+          "value": "{\"content\":6}"
+        },
+        {
+          "name": "__ml::page_f22ddafd-4154-4fa1-a734-7a87edb90643",
+          "value": "{\"pageId\":\"LoginForIframe\",\"accessId\":\"2bfabe1b-e409-439c-a008-e66f69140aae\",\"step\":1}"
+        },
+        {
+          "name": "__ml::page_5ae58a3c-a2f8-47d4-b30b-73356da7c174",
+          "value": "{\"pageId\":\"PostCreate\",\"accessId\":\"8f24b79f-1591-42b5-bd25-369a7fa4eb88\",\"step\":1}"
+        },
+        {
+          "name": "UvFirstReportLocalKey",
+          "value": "1760198400000"
+        },
+        {
+          "name": "__ml::page_79801d41-1f16-42d5-b8da-ba119d6e2b94",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"2e85085c-9b1b-4467-8f26-e93c34ba5524\",\"step\":1}"
+        },
+        {
+          "name": "finder_ua_report_data",
+          "value": "{\"browser\":\"Chrome\",\"browserVersion\":\"129.0.0.0\",\"engine\":\"Webkit\",\"engineVersion\":\"537.36\",\"os\":\"Mac OS X\",\"osVersion\":\"10.15.7\",\"device\":\"desktop\",\"darkmode\":0}"
+        },
+        {
+          "name": "__ml::page_2e9b6281-d284-406c-a927-dd32c9d579e4",
+          "value": "{\"pageId\":\"MicroPost\",\"accessId\":\"798116ea-c6a9-4756-a2a4-aec3e5116d8a\",\"step\":1}"
+        },
+        {
+          "name": "finder_route_meta",
+          "value": "micro.content/post/create;index;1;1760282622153"
+        }
+      ]
+    }
+  ]
+}

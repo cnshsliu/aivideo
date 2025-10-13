@@ -47,8 +47,17 @@ export async function GET({ params, cookies }) {
           'Content-Type': 'text/plain'
         }
       });
-    } catch (err) {
-      console.error("❌ [LOG API] Error reading log file:", err);
+    } catch (fileErr: any) {
+      // If file doesn't exist yet, return empty content (this is normal during early stages)
+      if (fileErr.code === 'ENOENT') {
+        console.log("📖 [LOG API] Log file doesn't exist yet, returning empty content");
+        return new Response('', {
+          headers: {
+            'Content-Type': 'text/plain'
+          }
+        });
+      }
+      console.error("❌ [LOG API] Error reading log file:", fileErr);
       return error(500, { message: "Error reading log file" });
     }
   } catch (err) {
