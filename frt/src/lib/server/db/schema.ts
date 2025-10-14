@@ -182,6 +182,7 @@ export const material = pgTable('material', {
   fileName: text('file_name').notNull(),
   fileType: text('file_type').notNull(), // "image", "video", "audio"
   alias: text('alias'), // Optional alias for the material
+  isCandidate: boolean('is_candidate').default(true),
   createdAt: timestamp('created_at', {
     withTimezone: true,
     mode: 'date'

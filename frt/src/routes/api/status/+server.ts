@@ -1,5 +1,4 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { BatchTranslationService } from '$lib/server/batch-translation';
 import { verifySession } from '$lib/server/auth';
 import { db } from '$lib/server/db';
 import { translationTask } from '$lib/server/db/schema';
@@ -27,21 +26,9 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     }
 
     if (batchId) {
-      // Get batch status
-      const batchService = new BatchTranslationService();
-      const batchStatus = await batchService.getBatchStatus(batchId);
-
-      if (!batchStatus) {
-        console.log('❌ [STATUS API] Batch not found:', batchId);
-        return json({ error: 'Batch not found' }, { status: 404 });
-      }
-
-      console.log('✅ [STATUS API] Batch status retrieved');
-      return json({
-        success: true,
-        type: 'batch',
-        data: batchStatus
-      });
+      // Batch functionality removed - not supported in current system
+      console.log('❌ [STATUS API] Batch functionality not supported');
+      return json({ error: 'Batch functionality not supported' }, { status: 400 });
     }
 
     if (taskId) {
@@ -74,12 +61,15 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
             startedAt: task.startedAt,
             completedAt: task.completedAt,
             errorMessage: task.errorMessage,
-            batchId: task.batchId
+            // batchId: task.batchId // Removed - field doesn't exist in schema
           },
           batch: null // No batch information in the new system
         }
       });
     }
+
+    // This should never be reached, but TypeScript needs it
+    return json({ error: 'Invalid request' }, { status: 400 });
   } catch (error) {
     console.error('❌ [STATUS API] Error checking status:', error);
     return json(

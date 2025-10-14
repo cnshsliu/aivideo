@@ -9,6 +9,9 @@ import path from 'path';
 import { spawn } from 'child_process';
 import type { Project } from '$lib/server/db/schema';
 
+// Store active child processes for cancellation
+const activeProcesses = new Map<string, { child: any; logStream: any }>();
+
 export async function POST({ params, cookies }) {
   try {
     console.log(
@@ -79,6 +82,75 @@ export async function POST({ params, cookies }) {
   }
 }
 
+export async function DELETE({ params, cookies }) {
+  try {
+    console.log(
+      '🛑 [VIDEO GENERATE API] DELETE request to cancel video generation for project:',
+      params.projectId
+    );
+
+    // Verify user session
+    const session = await verifySession(cookies);
+    if (!session) {
+      console.log('❌ [VIDEO GENERATE API] Unauthorized access attempt');
+      return error(401, { message: 'Unauthorized' });
+    }
+
+    const { projectId } = params;
+
+    // Check if there's an active process for this project
+    const activeProcess = activeProcesses.get(projectId);
+    if (!activeProcess) {
+      console.log('ℹ️ [VIDEO GENERATE API] No active process found for project:', projectId);
+      return json({ success: true, message: 'No active process to cancel' });
+    }
+
+    const { child, logStream } = activeProcess;
+
+    // Kill the child process
+    try {
+      child.kill('SIGTERM');
+      console.log('✅ [VIDEO GENERATE API] Sent SIGTERM to child process for project:', projectId);
+    } catch (killErr) {
+      console.error('❌ [VIDEO GENERATE API] Error killing child process:', killErr);
+      // Try force kill
+      try {
+        child.kill('SIGKILL');
+        console.log('✅ [VIDEO GENERATE API] Sent SIGKILL to child process for project:', projectId);
+      } catch (forceKillErr) {
+        console.error('❌ [VIDEO GENERATE API] Error force killing child process:', forceKillErr);
+      }
+    }
+
+    // Close the log stream
+    try {
+      logStream.end();
+      console.log('✅ [VIDEO GENERATE API] Closed log stream for project:', projectId);
+    } catch (streamErr) {
+      console.error('❌ [VIDEO GENERATE API] Error closing log stream:', streamErr);
+    }
+
+    // Remove from active processes
+    activeProcesses.delete(projectId);
+
+    // Update project status to error (cancelled)
+    await db
+      .update(project)
+      .set({
+        progressStep: 'error',
+        progressUpdatedAt: new Date()
+      })
+      .where(eq(project.id, projectId));
+
+    console.log('✅ [VIDEO GENERATE API] Video generation cancelled for project:', projectId);
+
+    return json({ success: true, message: 'Video generation cancelled' });
+  } catch (err) {
+    console.error('❌ [VIDEO GENERATE API] Video generation cancellation error:', err);
+    return error(500, { message: 'Internal server error' });
+  }
+}
+
 async function prepareAndRunGeneration(
   theProject: Project,
   projectPath: string
@@ -127,7 +199,7 @@ async function prepareAndRunGeneration(
     const materials = await db
       .select()
       .from(material)
-      .where(eq(material.projectId, theProject.id));
+      .where(and(eq(material.projectId, theProject.id), eq(material.isCandidate, true)));
 
     const mediaDir = path.join(projectPath, 'media');
     await fs.mkdir(mediaDir, { recursive: true });
@@ -335,6 +407,9 @@ async function executeCommandAndLog(
       cwd: mainDir // Python directory where main.py is located
     });
 
+    // Store the child process and log stream for potential cancellation
+    activeProcesses.set(projectId, { child, logStream });
+
     // Write stdout and stderr to log file
     child.stdout.pipe(logStream);
     child.stderr.pipe(logStream);
@@ -351,6 +426,9 @@ async function executeCommandAndLog(
     // Handle process completion
     child.on('close', async (code) => {
       console.log(`🎬 [VIDEO GENERATE] Process exited with code ${code}`);
+
+      // Remove from active processes
+      activeProcesses.delete(projectId);
 
       try {
         // Close log stream
@@ -404,6 +482,9 @@ async function executeCommandAndLog(
     // Handle process error
     child.on('error', async (err) => {
       console.error('❌ [VIDEO GENERATE] Process error:', err);
+
+      // Remove from active processes
+      activeProcesses.delete(projectId);
 
       try {
         // Update progress with error

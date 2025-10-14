@@ -205,19 +205,34 @@ export async function PATCH({ params, request, cookies }: RequestEvent) {
   }
 
   const data = await request.json();
-  const { materialId, alias } = data;
+  const { materialId, alias, isCandidate } = data;
 
-  if (!materialId || !alias) {
+  if (!materialId) {
     return error(400, {
-      message: 'Missing required fields: materialId, alias'
+      message: 'Missing required field: materialId'
     });
   }
 
-  // Update material alias
+  // Prepare update data
+  const updateData: any = {};
+  if (alias !== undefined) {
+    updateData.alias = alias;
+  }
+  if (isCandidate !== undefined) {
+    updateData.isCandidate = isCandidate;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return error(400, {
+      message: 'No valid fields to update'
+    });
+  }
+
+  // Update material
   try {
     const updatedMaterial = await db
       .update(material)
-      .set({ alias })
+      .set(updateData)
       .where(
         and(eq(material.id, materialId), eq(material.projectId, projectId))
       )
@@ -229,7 +244,7 @@ export async function PATCH({ params, request, cookies }: RequestEvent) {
 
     return json(updatedMaterial[0]);
   } catch (err) {
-    console.error('Error updating material alias:', err);
+    console.error('Error updating material:', err);
     return error(500, { message: 'Internal server error' });
   }
 }

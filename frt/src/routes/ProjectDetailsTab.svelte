@@ -39,6 +39,7 @@
     fileName: string;
     fileType: string;
     alias: string;
+    isCandidate: boolean;
     createdAt: string;
   }
 
@@ -544,6 +545,36 @@
   function cancelEditingAlias() {
     editingAliasId = null;
     editingAliasValue = '';
+  }
+
+  async function toggleCandidateStatus(materialId: string, currentStatus: boolean) {
+    try {
+      const response = await fetch(
+        `/api/projects/${selectedProject.id}/materials`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            materialId,
+            isCandidate: !currentStatus
+          })
+        }
+      );
+
+      if (response.ok) {
+        const updatedMaterial = await response.json();
+        // Update local state
+        projectMaterials = projectMaterials.map((m: Material) =>
+          m.id === materialId ? updatedMaterial : m
+        );
+      } else {
+        alert('Failed to update candidate status');
+      }
+    } catch (err) {
+      alert('Network error');
+      console.error(err);
+    }
   }
 
   // Function to reset all settings to their default values
@@ -1479,7 +1510,7 @@
       <h3 class="text-lg font-semibold">Project Materials</h3>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-6 gap-4">
       {#if loadingMaterials}
         <div class="col-span-full flex items-center justify-center py-8">
           <div class="flex items-center space-x-2">
@@ -1493,8 +1524,9 @@
         {#each sortedProjectMaterials as material (material.id)}
           {@const url = `/api/media/file/${material.relativePath.split('/')[0] === 'public' ? 'public' : 'user'}/${material.relativePath.split('/').slice(2).join('/')}`}
           <div
-            class="group relative w-full overflow-hidden rounded-lg border-2 border-gray-200 bg-white transition-all hover:shadow-md"
+            class="group relative w-full overflow-hidden rounded-lg border-2 border-gray-200 {material.isCandidate ? 'bg-blue-50' : 'bg-white'} transition-all hover:shadow-md"
           >
+      
             <button
               onclick={() => removeMaterial(material.id)}
               class="absolute top-2 right-2 z-10 rounded-full bg-red-500 p-1 text-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
@@ -1514,68 +1546,61 @@
                 />
               </svg>
             </button>
-            {#if material.fileType === 'image'}
+            {#if material.fileType.startsWith('image')}
               <div class="relative">
-                <button
-                  type="button"
-                  class="w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  onclick={() =>
-                    onPreviewMedia({
-                      type: 'image',
-                      url,
-                      name: material.fileName
-                    })}
-                  aria-label={`Preview ${material.fileName}`}
-                >
-                  <div class="aspect-square overflow-hidden bg-gray-100">
-                    <img
-                      src={url}
-                      alt={material.fileName}
-                      class="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      loading="lazy"
-                    />
-                  </div>
-                </button>
-              </div>
-            {:else if material.fileType === 'video'}
-              <div class="relative">
-                <button
-                  type="button"
-                  class="w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  onclick={() =>
-                    onPreviewMedia({
-                      type: 'video',
-                      url,
-                      name: material.fileName
-                    })}
-                  aria-label={`Preview ${material.fileName}`}
-                >
-                  <div
-                    class="aspect-square overflow-hidden bg-gray-100 relative"
+                <div class="aspect-square overflow-hidden bg-gray-100">
+                  <img
+                    src={url}
+                    alt={material.fileName}
+                    class="h-full w-full object-cover transition-transform group-hover:scale-105 cursor-pointer"
+                    loading="lazy"
+                    onclick={() => toggleCandidateStatus(material.id, material.isCandidate)}
+                  />
+                </div>
+                <div class="absolute inset-0 flex items-center justify-center bg-transparent bg-opacity-0 hover:bg-opacity-20 transition-opacity pointer-events-none">
+                  <button
+                    type="button"
+                    class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 transition-opacity pointer-events-auto focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    onclick={() =>
+                      onPreviewMedia({
+                        type: 'image',
+                        url,
+                        name: material.fileName
+                      })}
+                    aria-label={`Preview ${material.fileName}`}
                   >
-                    <video
-                      src={url}
-                      class="h-full w-full object-cover"
-                      muted
-                      preload="metadata"
-                      onloadedmetadata={(e) =>
-                        ((e.target as HTMLVideoElement).currentTime = 0)}
-                    ></video>
-                    <div
-                      class="absolute inset-0 flex items-center justify-center bg-transparent bg-opacity-20"
-                    >
-                      <div class="rounded-full bg-white bg-opacity-80 p-2">
-                        <svg
-                          class="h-6 w-6 text-gray-700"
-                          fill="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </button>
+                    👁️
+                  </button>
+                </div>
+              </div>
+            {:else if material.fileType.startsWith('video')}
+              <div class="relative">
+                <div class="aspect-square overflow-hidden bg-gray-100 relative">
+                  <video
+                    src={url}
+                    class="h-full w-full object-cover cursor-pointer"
+                    muted
+                    preload="metadata"
+                    onloadedmetadata={(e) =>
+                      ((e.target as HTMLVideoElement).currentTime = 0)}
+                    onclick={() => toggleCandidateStatus(material.id, material.isCandidate)}
+                  ></video>
+                </div>
+                <div class="absolute inset-0 flex items-center justify-center bg-transparent bg-opacity-0 hover:bg-opacity-20 transition-opacity pointer-events-none">
+                  <button
+                    type="button"
+                    class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 transition-opacity pointer-events-auto focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    onclick={() =>
+                      onPreviewMedia({
+                        type: 'video',
+                        url,
+                        name: material.fileName
+                      })}
+                    aria-label={`Preview ${material.fileName}`}
+                  >
+                    ▶️
+                  </button>
+                </div>
               </div>
             {:else}
               <div

@@ -1,11 +1,10 @@
 import { json, error } from '@sveltejs/kit';
 import {
   validateSessionToken,
-  invalidateSession,
-  deleteSessionTokenCookie
+  invalidateSession
 } from '$lib/server/auth';
 
-export async function POST({ request, cookies }) {
+export async function POST({ request, cookies, ...event }) {
   try {
     console.log('🚪 [LOGOUT API] POST request received');
 
@@ -31,7 +30,8 @@ export async function POST({ request, cookies }) {
       console.log('🗑️ [LOGOUT API] Session invalidated:', session.id);
     }
 
-    deleteSessionTokenCookie({ cookies });
+    // Delete session cookie directly
+    cookies.delete('auth-session', { path: '/' });
     console.log('🍪 [LOGOUT API] Session cookie deleted');
 
     console.log('✅ [LOGOUT API] Logout completed successfully');

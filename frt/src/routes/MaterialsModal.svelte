@@ -1,4 +1,6 @@
 <script lang="ts">
+  import TreeNode from '$lib/components/TreeNode.svelte';
+
   interface Project {
     id: string;
     title: string;
@@ -63,9 +65,11 @@
   let showCreateFolder = $state(false);
   let newFolderName = $state('');
   let currentFolderPath = $state('');
-  let selectedFolderPath = $state('');
+  let selectedFolderNode = $state<TreeNode | null>(null);
   let currentFolderContents = $state<MediaFile[]>([]);
   let loadingContents = $state(false);
+  let currentIsPublic = $state(true);
+  let lastFolderKey = 'materialsModal_lastFolder';
 
   let addedPublicFiles = $derived.by(
     () =>
@@ -127,20 +131,22 @@
 
   function updateTree(tree: TreeNode, folderPath: string, files: MediaFile[]) {
     if (folderPath === '') {
-      // Root level
-      tree.children = files.map(file => ({
-        name: file.name,
-        type: file.type as 'folder' | 'file',
-        path: file.name,
-        children: file.type === 'folder' ? [] : undefined,
-        expanded: false
-      }));
+      // Root level - only include folders
+      tree.children = files
+        .filter((file) => file.type === 'folder')
+        .map((file) => ({
+          name: file.name,
+          type: file.type,
+          path: file.name,
+          children: [],
+          expanded: false
+        }));
     } else {
-      // Find the folder node and update its children
+      // Find the folder node and update its children - only include folders
       const pathParts = folderPath.split('/');
       let currentNode = tree;
       for (const part of pathParts) {
-        const child = currentNode.children?.find(c => c.name === part);
+        const child = currentNode.children?.find((c) => c.name === part);
         if (child) {
           currentNode = child;
         } else {
@@ -148,13 +154,15 @@
         }
       }
       if (currentNode) {
-        currentNode.children = files.map(file => ({
-          name: file.name,
-          type: file.type as 'folder' | 'file',
-          path: folderPath + '/' + file.name,
-          children: file.type === 'folder' ? [] : undefined,
-          expanded: false
-        }));
+        currentNode.children = files
+          .filter((file) => file.type === 'folder')
+          .map((file) => ({
+            name: file.name,
+            type: file.type,
+            path: folderPath + '/' + file.name,
+            children: [],
+            expanded: false
+          }));
         currentNode.loading = false;
       }
     }
@@ -180,8 +188,7 @@
   }
 
   function isMaterialInProject(filePath: string, isPublic: boolean): boolean {
-    const fileName = filePath.split('/').pop() || '';
-    return isPublic ? addedPublicFiles.has(fileName) : addedUserFiles.has(fileName);
+    return isPublic ? addedPublicFiles.has(filePath) : addedUserFiles.has(filePath);
   }
 
   async function addMaterialToProject(filePath: string, isPublic: boolean) {
@@ -193,6 +200,8 @@
         : `${currentUsername}/media/${filePath}`;
 
       const fileName = filePath.split('/').pop() || '';
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      const fileType = fileExtension && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(fileExtension) ? 'image' : 'video';
 
       const response = await fetch(
         `/api/projects/${selectedProject.id}/materials`,
@@ -202,7 +211,7 @@
           body: JSON.stringify({
             relativePath,
             fileName,
-            fileType: 'file' // We'll need to determine this from the file
+            fileType
           })
         }
       );
@@ -242,7 +251,39 @@
     }
   }
 
+  async function loadFolderContent(node: TreeNode, isPublic: boolean) {
+    selectedFolderNode = node;
+    currentFolderPath = node.path;
+    currentIsPublic = isPublic;
+
+    // Save the current folder to localStorage
+    saveLastFolder(isPublic, node.path);
+
+    loadingContents = true;
+    try {
+      const level = isPublic ? 'public' : 'user';
+      const folderParam = node.path ? `&folder=${encodeURIComponent(node.path)}` : '';
+      const response = await fetch(`/api/media?level=${level}${folderParam}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        currentFolderContents = data.filter((file: MediaFile) => file.type !== 'folder');
+      } else {
+        console.error('Failed to load folder content:', await response.text());
+        currentFolderContents = [];
+      }
+    } catch (err) {
+      console.error('Error loading folder content:', err);
+      currentFolderContents = [];
+    } finally {
+      loadingContents = false;
+    }
+  }
+
   async function toggleFolder(node: TreeNode, isPublic: boolean) {
+    // Load folder content into the right panel and toggle expand/collapse
+    await loadFolderContent(node, isPublic);
+
     if (node.expanded) {
       node.expanded = false;
     } else {
@@ -258,24 +299,112 @@
     }
   }
 
-  async function selectFolder(folderPath: string, isPublic: boolean) {
-    selectedFolderPath = folderPath;
-    loadingContents = true;
+  async function loadFolderContentOnly(node: TreeNode, isPublic: boolean) {
+    // Load folder content into the right panel without toggling expand
+    await loadFolderContent(node, isPublic);
+  }
+
+  function formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function saveLastFolder(isPublic: boolean, path: string) {
     try {
-      const response = await fetch(`/api/media?level=${isPublic ? 'public' : 'user'}${folderPath ? `&folder=${encodeURIComponent(folderPath)}` : ''}`);
-      if (response.ok) {
-        const files = await response.json();
-        // Filter to only show files, not folders
-        currentFolderContents = files.filter((file: MediaFile) => file.type !== 'folder');
-      } else {
-        currentFolderContents = [];
+      const folderData = {
+        isPublic,
+        path,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(lastFolderKey, JSON.stringify(folderData));
+    } catch (err) {
+      console.error('Failed to save last folder to localStorage:', err);
+    }
+  }
+
+  function getLastFolder() {
+    try {
+      const stored = localStorage.getItem(lastFolderKey);
+      if (stored) {
+        const folderData = JSON.parse(stored);
+        // Check if data is valid and recent (within 30 days)
+        if (folderData && folderData.timestamp &&
+            (Date.now() - folderData.timestamp) < 30 * 24 * 60 * 60 * 1000) {
+          return folderData;
+        }
       }
     } catch (err) {
-      console.error('Error loading folder contents:', err);
-      currentFolderContents = [];
-    } finally {
-      loadingContents = false;
+      console.error('Failed to read last folder from localStorage:', err);
     }
+    return null;
+  }
+
+  async function restoreLastFolder() {
+    const lastFolder = getLastFolder();
+    if (!lastFolder) {
+      // Default to Public Media root
+      await loadFolderContentOnly(publicTree, true);
+      return;
+    }
+
+    const { isPublic, path } = lastFolder;
+
+    // Try to find and navigate to the saved folder
+    try {
+      if (isPublic) {
+        // Check if the path exists in public media
+        const response = await fetch(`/api/media?level=public${path ? `&folder=${encodeURIComponent(path)}` : ''}`);
+        if (response.ok) {
+          // Find the node in the tree
+          const pathParts = path ? path.split('/') : [];
+          let currentNode = publicTree;
+
+          for (const part of pathParts) {
+            const child = currentNode.children?.find((c) => c.name === part);
+            if (child) {
+              currentNode = child;
+            } else {
+              // Path doesn't exist, fall back to root
+              await loadFolderContentOnly(publicTree, true);
+              return;
+            }
+          }
+
+          await loadFolderContentOnly(currentNode, true);
+          return;
+        }
+      } else {
+        // Check if the path exists in user media
+        const response = await fetch(`/api/media?level=user${path ? `&folder=${encodeURIComponent(path)}` : ''}`);
+        if (response.ok) {
+          // Find the node in the tree
+          const pathParts = path ? path.split('/') : [];
+          let currentNode = userTree;
+
+          for (const part of pathParts) {
+            const child = currentNode.children?.find((c) => c.name === part);
+            if (child) {
+              currentNode = child;
+            } else {
+              // Path doesn't exist, fall back to root
+              await loadFolderContentOnly(publicTree, true);
+              return;
+            }
+          }
+
+          await loadFolderContentOnly(currentNode, false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Error restoring last folder:', err);
+    }
+
+    // If we get here, the saved folder doesn't exist anymore, default to Public Media
+    await loadFolderContentOnly(publicTree, true);
   }
 
   async function createFolder() {
@@ -286,7 +415,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          level: materialsTab,
+          level: currentIsPublic ? 'public' : 'user',
           folderName: newFolderName.trim(),
           parentFolder: currentFolderPath
         })
@@ -294,7 +423,7 @@
 
       if (response.ok) {
         // Refresh the current folder
-        if (materialsTab === 'public') {
+        if (currentIsPublic) {
           await loadPublicMedia(currentFolderPath);
         } else {
           await loadUserMedia(currentFolderPath);
@@ -319,8 +448,14 @@
 
   $effect(() => {
     if (showMaterialsModal && !hasLoaded) {
-      loadPublicMedia();
-      loadUserMedia();
+      // Load the media trees first
+      Promise.all([
+        loadPublicMedia(),
+        loadUserMedia()
+      ]).then(() => {
+        // Then try to restore the last folder
+        restoreLastFolder();
+      });
       if (selectedProject) {
         loadProjectMaterials();
       }
@@ -371,254 +506,184 @@
         </button>
       </div>
 
-      <!-- Materials Tabs -->
-      <div class="mb-6">
-        <div class="flex rounded-lg bg-gray-100/50 p-1">
-          <button
-            class="flex-1 rounded-md px-4 py-2 transition-all duration-200"
-            class:bg-white={materialsTab === 'public'}
-            class:text-gray-900={materialsTab === 'public'}
-            class:text-gray-600={materialsTab !== 'public'}
-            onclick={() => (materialsTab = 'public')}
-          >
-            Public Media
-          </button>
-          <button
-            class="flex-1 rounded-md px-4 py-2 transition-all duration-200"
-            class:bg-white={materialsTab === 'user'}
-            class:text-gray-900={materialsTab === 'user'}
-            class:text-gray-600={materialsTab !== 'user'}
-            onclick={() => (materialsTab = 'user')}
-          >
-            User Media
-          </button>
-        </div>
-      </div>
-
       <!-- Tree View -->
       <div class="flex gap-4 h-[calc(100vh-200px)]">
         <!-- Tree Navigation -->
         <div class="w-80 bg-gray-50 rounded-lg p-4 overflow-y-auto">
-          {#if materialsTab === 'public'}
-            {#if loadingPublic}
-              <div class="flex items-center justify-center py-4">
-                <div class="animate-spin rounded-full border-2 border-blue-500 border-t-transparent w-6 h-6"></div>
-                <span class="ml-2">Loading...</span>
-              </div>
-            {:else}
-              <div class="space-y-1">
-                <!-- Public Media Root -->
-                <div class="flex items-center py-1 hover:bg-gray-100 rounded px-2">
-                  <button
-                    class="flex items-center mr-2 text-gray-500 hover:text-gray-700"
-                    onclick={() => toggleFolder(publicTree, true)}
-                  >
-                    {#if publicTree.loading}
-                      <div class="w-4 h-4 mr-1 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-                    {:else}
-                      <svg class="w-4 h-4 mr-1 transform transition-transform {publicTree.expanded ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                      </svg>
-                    {/if}
-                  </button>
-                  <span class="text-xl mr-2">📁</span>
-                  <span class="text-sm font-medium">Public Media</span>
-                  <div class="ml-auto flex gap-1">
-                    <button
-                      class="text-gray-400 hover:text-gray-600 p-1 rounded"
-                      onclick={() => { currentFolderPath = ''; showCreateFolder = true; }}
-                      title="Create folder"
-                    >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                {#if publicTree.expanded && publicTree.children}
-                  {#each publicTree.children.filter(n => n.type === 'folder') as node}
-                    <div class="flex items-center py-1 hover:bg-gray-100 rounded px-2 ml-4">
-                      <button
-                        class="flex items-center mr-2 text-gray-500 hover:text-gray-700"
-                        onclick={() => toggleFolder(node, true)}
-                      >
-                        {#if node.loading}
-                          <div class="w-4 h-4 mr-1 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-                        {:else}
-                          <svg class="w-4 h-4 mr-1 transform transition-transform {node.expanded ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                          </svg>
-                        {/if}
-                      </button>
-                      <button
-                        class="flex items-center flex-1 text-left {selectedFolderPath === node.path ? 'bg-blue-100' : ''}"
-                        onclick={() => selectFolder(node.path, true)}
-                      >
-                        <span class="text-lg mr-2">📁</span>
-                        <span class="text-sm">{node.name}</span>
-                      </button>
-                      <div class="ml-auto flex gap-1">
-                        <button
-                          class="text-gray-400 hover:text-gray-600 p-1 rounded"
-                          onclick={(e) => { e.stopPropagation(); currentFolderPath = node.path; showCreateFolder = true; }}
-                          title="Create subfolder"
-                        >
-                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    {#if node.expanded && node.children}
-                      {#each node.children.filter(n => n.type === 'folder') as child}
-                        <div class="flex items-center py-1 hover:bg-gray-100 rounded px-2 ml-8">
-                          <button
-                            class="flex items-center mr-2 text-gray-500 hover:text-gray-700"
-                            onclick={() => toggleFolder(child, true)}
-                          >
-                            {#if child.loading}
-                              <div class="w-4 h-4 mr-1 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-                            {:else}
-                              <svg class="w-4 h-4 mr-1 transform transition-transform {child.expanded ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                              </svg>
-                            {/if}
-                          </button>
-                          <button
-                            class="flex items-center flex-1 text-left"
-                            onclick={() => selectFolder(child.path, true)}
-                            class:bg-blue-100={selectedFolderPath === child.path}
-                          >
-                            <span class="text-lg mr-2">📁</span>
-                            <span class="text-sm">{child.name}</span>
-                          </button>
-                        </div>
-                      {/each}
-                    {/if}
-                  {/each}
-                {/if}
-              </div>
-            {/if}
+          {#if loadingPublic}
+            <div class="flex items-center justify-center py-4">
+              <div class="animate-spin rounded-full border-2 border-blue-500 border-t-transparent w-6 h-6"></div>
+              <span class="ml-2">Loading Public...</span>
+            </div>
           {:else}
-            {#if loadingUser}
-              <div class="flex items-center justify-center py-4">
-                <div class="animate-spin rounded-full border-2 border-blue-500 border-t-transparent w-6 h-6"></div>
-                <span class="ml-2">Loading...</span>
-              </div>
-            {:else}
-              <div class="space-y-1">
-                <!-- User Media Root -->
-                <div class="flex items-center py-1 hover:bg-gray-100 rounded px-2">
-                  <button
-                    class="flex items-center mr-2 text-gray-500 hover:text-gray-700"
-                    onclick={() => toggleFolder(userTree, false)}
-                  >
-                    {#if userTree.loading}
-                      <div class="w-4 h-4 mr-1 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-                    {:else}
-                      <svg class="w-4 h-4 mr-1 transform transition-transform {userTree.expanded ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                      </svg>
-                    {/if}
-                  </button>
-                  <span class="text-xl mr-2">📁</span>
-                  <span class="text-sm font-medium">User Media</span>
-                  <div class="ml-auto flex gap-1">
-                    <button
-                      class="text-gray-400 hover:text-gray-600 p-1 rounded"
-                      onclick={() => { currentFolderPath = ''; showCreateFolder = true; }}
-                      title="Create folder"
-                    >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+            <TreeNode
+              node={publicTree}
+              isPublic={true}
+              selectedNode={selectedFolderNode}
+              onToggle={toggleFolder}
+              onLoadContent={loadFolderContentOnly}
+              onCreateFolder={(path, isPublic) => {
+                currentFolderPath = path;
+                currentIsPublic = isPublic;
+                showCreateFolder = true;
+              }}
+              onRefresh={(isPublic) =>
+                isPublic ? loadPublicMedia() : loadUserMedia()}
+            />
+          {/if}
+          {#if loadingUser}
+            <div class="flex items-center justify-center py-4">
+              <div class="animate-spin rounded-full border-2 border-blue-500 border-t-transparent w-6 h-6"></div>
+              <span class="ml-2">Loading User...</span>
+            </div>
+          {:else}
+            <TreeNode
+              node={userTree}
+              isPublic={false}
+              selectedNode={selectedFolderNode}
+              onToggle={toggleFolder}
+              onLoadContent={loadFolderContentOnly}
+              onCreateFolder={(path, isPublic) => {
+                currentFolderPath = path;
+                currentIsPublic = isPublic;
+                showCreateFolder = true;
+              }}
+              onRefresh={(isPublic) =>
+                isPublic ? loadPublicMedia() : loadUserMedia()}
+            />
+          {/if}
+        </div>
 
-                {#if userTree.expanded && userTree.children}
-                  {#each userTree.children as node}
-                    <div class="flex items-center py-1 hover:bg-gray-100 rounded px-2 ml-4">
-                      {#if node.type === 'folder'}
+        <!-- Content Area -->
+        <div class="flex-1 bg-white rounded-lg border p-4 overflow-y-auto">
+          {#if selectedFolderNode}
+            <div class="mb-4">
+              <h3 class="text-lg font-semibold">{selectedFolderNode.name}</h3>
+              <p class="text-sm text-gray-500">
+                {currentFolderContents.length} items
+              </p>
+            </div>
+
+            {#if currentFolderContents.length > 0}
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {#each currentFolderContents as file}
+                  <div class="group relative border rounded-lg p-2 hover:bg-gray-50 cursor-pointer transition-colors {isMaterialInProject(`${selectedFolderNode!.path}/${file.name}`, currentIsPublic) ? 'border-green-500 bg-green-50' : 'border-gray-200'}">
+                    <div class="aspect-square flex items-center justify-center bg-gray-100 rounded mb-2 group">
+                      {#if file.type === 'image' && file.url}
+                        <div class="relative w-full h-full">
+                          <img
+                            src={file.url}
+                            alt={file.name}
+                            class="w-full h-full object-cover rounded"
+                          />
+                          <div class="absolute inset-0 flex items-center justify-center bg-black/20 rounded opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
-                          class="flex items-center mr-2 text-gray-500 hover:text-gray-700"
-                          onclick={() => toggleFolder(node, false)}
+                          class="bg-green-500 text-white rounded-full p-1 hover:bg-green-600 text-xs"
+                          onclick={() => addMaterialToProject(`${selectedFolderNode!.path}/${file.name}`, currentIsPublic)}
+                          title="Add to project"
+                          aria-label="Add to project"
                         >
-                          {#if node.loading}
-                            <div class="w-4 h-4 mr-1 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-                          {:else}
-                            <svg class="w-4 h-4 mr-1 transform transition-transform {node.expanded ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                            </svg>
-                          {/if}
+                          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" fill="rgb(59 130 246)" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" stroke="white" d="M12 4v16m8-8H4"></path>
+                          </svg>
                         </button>
-                        <span class="text-lg mr-2">📁</span>
-                        <span class="text-sm">{node.name}</span>
-                        <div class="ml-auto flex gap-1">
-                          <button
-                            class="text-gray-400 hover:text-gray-600 p-1 rounded"
-                            onclick={() => { currentFolderPath = node.path; showCreateFolder = true; }}
-                            title="Create subfolder"
-                          >
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                            </svg>
-                          </button>
+                          </div>
                         </div>
+                      {:else if file.type === 'video'}
+                        {#if file.url}
+                          <div class="relative w-full h-full">
+                            <video
+                              src={file.url!}
+                              class="w-full h-full object-cover rounded"
+                              preload="metadata"
+                              muted
+                              playsinline
+                            ></video>
+                            <div class="absolute inset-0 flex items-center justify-center bg-black/20 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                class="bg-white/90 text-black rounded-full w-8 h-8 flex items-center justify-center hover:bg-white"
+                                onclick={() => onPreviewMedia({
+                                  type: 'video',
+                                  url: file.url!,
+                                  name: file.name
+                                })}
+                              >
+                                ▶️
+                              </button>
+                            </div>
+                          </div>
+                        {:else}
+                          <div class="flex flex-col items-center">
+                            <span class="text-2xl">🎥</span>
+                          </div>
+                        {/if}
                       {:else}
-                        <span class="text-lg mr-2">
-                          {#if node.type === 'image'}
+                        <span class="text-2xl">
+                          {#if file.type === 'image'}
                             🖼️
-                          {:else if node.type === 'video'}
+                          {:else if file.type === 'video'}
                             🎥
-                          {:else if node.type === 'audio'}
+                          {:else if file.type === 'audio'}
                             🎵
                           {:else}
                             📄
                           {/if}
                         </span>
-                        <span class="text-sm">{node.name}</span>
-                        {#if isMaterialInProject(node.path, false)}
-                          <button
-                            class="ml-auto bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                            onclick={() => {
-                              const material = projectMaterials.find(m =>
-                                m.relativePath === `${currentUsername}/media/${node.path}`
-                              );
-                              if (material) removeMaterialFromProject(material.id);
-                            }}
-                            title="Remove from project"
-                          >
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                          </button>
-                        {:else}
-                          <button
-                            class="ml-auto bg-green-500 text-white rounded-full p-1 hover:bg-green-600"
-                            onclick={() => addMaterialToProject(node.path, false)}
-                            title="Add to project"
-                          >
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                            </svg>
-                          </button>
-                        {/if}
                       {/if}
                     </div>
-                  {/each}
-                {/if}
+                    <div class="text-xs truncate" title={file.name}>
+                      {file.name}
+                    </div>
+                    <div class="text-xs text-gray-500">
+                      {formatFileSize(file.size)}
+                    </div>
+                    <div class="mt-2 flex justify-center">
+                      {#if isMaterialInProject(`${selectedFolderNode!.path}/${file.name}`, currentIsPublic)}
+                        <button
+                          class="bg-red-500 text-white rounded-full p-1 hover:bg-red-600 text-xs"
+                          onclick={() => {
+                            const material = projectMaterials.find(m =>
+                              currentIsPublic
+                                ? m.relativePath === `public/media/${selectedFolderNode!.path}/${file.name}`
+                                : m.relativePath === `${currentUsername}/media/${selectedFolderNode!.path}/${file.name}`
+                            );
+                            if (material) removeMaterialFromProject(material.id);
+                          }}
+                          title="Remove from project"
+                          aria-label="Remove from project"
+                        >
+                          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" stroke="white" d="M6 18L18 6M6 6l12 12"></path>
+                          </svg>
+                        </button>
+                      {:else}
+                        <button
+                          class="bg-green-500 text-white rounded-full p-1 hover:bg-green-600 text-xs"
+                          onclick={() => addMaterialToProject(`${selectedFolderNode!.path}/${file.name}`, currentIsPublic)}
+                          title="Add to project"
+                          aria-label="Add to project"
+                        >
+                          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" fill="rgb(59 130 246)" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" stroke="white" d="M12 4v16m8-8H4"></path>
+                          </svg>
+                        </button>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="text-center text-gray-500 py-8">
+                This folder is empty
               </div>
             {/if}
+          {:else}
+            <div class="text-center text-gray-500 py-8">
+              Select a folder from the tree to view contents
+            </div>
           {/if}
-        </div>
-
-        <!-- Content Area -->
-        <div class="flex-1 bg-white rounded-lg border p-4">
-          <div class="text-center text-gray-500 py-8">
-            Select a folder or file from the tree to view contents
-          </div>
         </div>
       </div>
 

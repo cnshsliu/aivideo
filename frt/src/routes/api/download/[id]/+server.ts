@@ -129,7 +129,7 @@ export async function GET({ params, url }) {
     );
 
     // Return file with appropriate headers
-    return new Response(fileContent, {
+    return new Response(fileContent as any, {
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': `attachment; filename=\"${fileName}\"`,
@@ -235,7 +235,7 @@ Target Language: ${taskData.targetLanguage}
 Task ID: ${taskData.taskId}
 
 Content:
-${content}`;
+${taskData.sourceContent || 'No content available'}`;
 
     await writeFile(filePath, fallbackContent);
     return filePath;
