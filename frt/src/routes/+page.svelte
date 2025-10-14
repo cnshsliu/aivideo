@@ -335,15 +335,18 @@
     ); // 5 minutes
   }
 
-  async function uploadMedia() {
+  async function uploadMedia(options?: { level?: string; folderPath?: string }) {
     if (!selectedFile) return;
 
     isUploading = true;
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('level', uploadLevel);
-      console.log('=-======', uploadLevel);
+      formData.append('level', options?.level || uploadLevel);
+      if (options?.folderPath) {
+        formData.append('folderPath', options.folderPath);
+      }
+      console.log('=-======', options?.level || uploadLevel, options?.folderPath);
 
       const response = await fetch('/api/media/upload', {
         method: 'POST',
@@ -479,14 +482,14 @@
   <!-- Success/Error Messages -->
   {#if success}
     <div
-      class="mb-4 rounded-lg border border-green-400 bg-green-100 p-4 text-green-700"
+      class="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300 rounded-lg border border-green-400 bg-green-100 p-4 text-green-700 shadow-lg"
     >
       {success}
     </div>
   {/if}
   {#if error}
     <div
-      class="mb-4 rounded-lg border border-red-400 bg-red-100 p-4 text-red-700"
+      class="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300 rounded-lg border border-red-400 bg-red-100 p-4 text-red-700 shadow-lg"
     >
       {error}
     </div>

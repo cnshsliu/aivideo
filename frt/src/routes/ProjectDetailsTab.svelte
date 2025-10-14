@@ -817,32 +817,27 @@
             {/if}
           </div>
         {/if}
+        <!-- Project folder and progress status -->
+        {#if selectedProject.progressStep}
+          <div class="mt-2">
+            <span class="text-sm font-medium">Status: </span>
+            <span
+              class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                selectedProject.progressStep === 'complete'
+                  ? 'bg-green-100 text-green-800'
+                  : selectedProject.progressStep === 'error'
+                    ? 'bg-red-100 text-red-800'
+                    : selectedProject.progressStep === 'running'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : 'bg-blue-100 text-blue-800'
+              }`}
+            >
+              {selectedProject.progressStep}
+            </span>
+          </div>
+        {/if}
         <div class="flex items-center gap-2">
           <p class="text-gray-600">{selectedProject.name}</p>
-        </div>
-        <!-- Project folder and progress status -->
-        <div class="mt-2">
-          <p class="text-sm text-gray-500">
-            Project Folder: {selectedProject.name}
-          </p>
-          {#if selectedProject.progressStep}
-            <div class="mt-2">
-              <span class="text-sm font-medium">Status: </span>
-              <span
-                class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  selectedProject.progressStep === 'complete'
-                    ? 'bg-green-100 text-green-800'
-                    : selectedProject.progressStep === 'error'
-                      ? 'bg-red-100 text-red-800'
-                      : selectedProject.progressStep === 'running'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-blue-100 text-blue-800'
-                }`}
-              >
-                {selectedProject.progressStep}
-              </span>
-            </div>
-          {/if}
         </div>
       </div>
       <div class="flex gap-2">
@@ -871,30 +866,36 @@
           </button>
         </div>
         <button
-          onclick={generatingVideo ? (onCancelVideo ? onCancelVideo : () => {}) : async () => {
-            // Check for empty required fields
-            if (!staticSubtitleContent || !staticSubtitleContent.trim()) {
-              alert(
-                'Please enter static subtitle content before generating video.'
-              );
-              return;
-            }
-            if (!descContent || !descContent.trim()) {
-              alert('Please enter video description before generating video.');
-              return;
-            }
-            if (!briefContent || !briefContent.trim()) {
-              alert('Please enter brief overview before generating video.');
-              return;
-            }
+          onclick={generatingVideo
+            ? onCancelVideo
+              ? onCancelVideo
+              : () => {}
+            : async () => {
+                // Check for empty required fields
+                if (!staticSubtitleContent || !staticSubtitleContent.trim()) {
+                  alert(
+                    'Please enter static subtitle content before generating video.'
+                  );
+                  return;
+                }
+                if (!descContent || !descContent.trim()) {
+                  alert(
+                    'Please enter video description before generating video.'
+                  );
+                  return;
+                }
+                if (!briefContent || !briefContent.trim()) {
+                  alert('Please enter brief overview before generating video.');
+                  return;
+                }
 
-            // genSubttile用于控制python命令行运行时，是否生成字幕
-            // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
-            genSubtitle = false;
-            await saveContent();
+                // genSubttile用于控制python命令行运行时，是否生成字幕
+                // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
+                genSubtitle = false;
+                await saveContent();
 
-            onGenerateVideo();
-          }}
+                onGenerateVideo();
+              }}
           disabled={false}
           class="rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-white transition-all duration-200 hover:from-purple-600 hover:to-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -1008,7 +1009,9 @@
             id="btn-gen-static-subtitles"
             class="rounded-lg bg-gray-500 px-4 py-2 text-white transition-all duration-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={false}
-            onclick={generatingStaticSubtitles ? cancelStaticSubtitlesGeneration : generateStaticSubtitles}
+            onclick={generatingStaticSubtitles
+              ? cancelStaticSubtitlesGeneration
+              : generateStaticSubtitles}
           >
             {#if generatingStaticSubtitles}
               Cancel

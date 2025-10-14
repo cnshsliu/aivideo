@@ -16,12 +16,14 @@ export async function POST({ request, cookies }: RequestEvent) {
     const level = formData.get('level') as string;
     const file = formData.get('file') as File;
     const projectId = formData.get('projectId') as string;
+    const folderPath = formData.get('folderPath') as string;
 
     console.log('📋 [MEDIA UPLOAD] Upload details:', {
       level,
       fileName: file?.name,
       fileSize: file?.size,
-      projectId: projectId || 'none'
+      projectId: projectId || 'none',
+      folderPath: folderPath || 'none'
     });
 
     // Validate inputs
@@ -43,7 +45,9 @@ export async function POST({ request, cookies }: RequestEvent) {
 
     if (level === 'public') {
       // Public uploads do not require authentication
-      uploadPath = path.join(vaultPath, 'public', 'media');
+      uploadPath = folderPath
+        ? path.join(vaultPath, 'public', 'media', folderPath)
+        : path.join(vaultPath, 'public', 'media');
       console.log('🌐 [MEDIA UPLOAD] Public upload to:', uploadPath);
     } else {
       // User and project uploads require authentication
@@ -56,7 +60,9 @@ export async function POST({ request, cookies }: RequestEvent) {
       }
 
       if (level === 'user') {
-        uploadPath = path.join(vaultPath, session.username, 'media');
+        uploadPath = folderPath
+          ? path.join(vaultPath, session.username, 'media', folderPath)
+          : path.join(vaultPath, session.username, 'media');
         console.log('👤 [MEDIA UPLOAD] User upload to:', uploadPath);
       } else if (level === 'project') {
         if (!projectId) {
