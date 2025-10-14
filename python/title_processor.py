@@ -30,17 +30,17 @@ class TitleProcessor:
             if args.title_timestamp:
                 title = title + "," + datetime.now().strftime("%H:%M:%S")
 
-            # Parse title - split by comma for multi-line
-            title_lines = title.split(",")
+            # Parse title - split by comma and Chinese comma for multi-line
+            title_lines = title.replace("，", ",").split(",")
             font_size = getattr(args, "title_font_size", 60)
             if font_size is None:
                 font_size = 60
             title_font = "Hiragino Sans GB"
 
             title_clips = []
-            title_position = getattr(args, "title_position", 20)
+            title_position = getattr(args, "title_position", 15)
             if title_position is None:
-                title_position = 20
+                title_position = 15
             y_offset = title_position / 100 * clip.h
 
             for i, line in enumerate(title_lines):

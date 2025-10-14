@@ -1,4 +1,4 @@
-import { chromium, Browser, Page, BrowserContext } from 'playwright';
+import { chromium, Browser, Page, BrowserContext } from "playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -10,7 +10,7 @@ class PlaywrightClient {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
-  private storageFile: string = 'wxsession.json';
+  private storageFile: string = "wxsession.json";
 
   constructor(config: PlaywrightClientConfig = {}) {
     // No initialization needed here
@@ -18,10 +18,16 @@ class PlaywrightClient {
 
   async connect(): Promise<void> {
     try {
-      this.browser = await chromium.launch({ channel: 'chrome', headless: false });
+      this.browser = await chromium.launch({
+        channel: "chrome",
+        headless: false,
+      });
       this.context = await this.browser.newContext({
-        storageState: fs.existsSync(this.storageFile) ? JSON.parse(fs.readFileSync(this.storageFile, 'utf8')) : undefined,
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'
+        storageState: fs.existsSync(this.storageFile)
+          ? JSON.parse(fs.readFileSync(this.storageFile, "utf8"))
+          : undefined,
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
       });
       this.page = await this.context.newPage();
       console.log("Successfully launched Playwright browser.");
@@ -64,7 +70,10 @@ class PlaywrightClient {
       console.log(`  ${name}: ${value}`);
     }
 
-    const allFound = cookieNames.every(name => cookies.hasOwnProperty(name) && cookies[name] && cookies[name] !== '');
+    const allFound = cookieNames.every(
+      (name) =>
+        cookies.hasOwnProperty(name) && cookies[name] && cookies[name] !== "",
+    );
     return allFound;
   }
 
@@ -75,33 +84,53 @@ class PlaywrightClient {
     console.log("Storage state saved.");
   }
 
-  async postVideo(videoPath: string, desc: string, brief: string, dryrun: boolean): Promise<void> {
+  async postVideo(
+    videoPath: string,
+    desc: string,
+    brief: string,
+    dryrun: boolean,
+  ): Promise<void> {
+    dryrun = false;
     if (!this.page) throw new Error("Page not initialized.");
     // Upload video file
     const fileInput = this.page.locator('input[type="file"]');
     await fileInput.setInputFiles({
-      name: 'demo.mp4',
-      mimeType: 'video/mp4',
-      buffer: fs.readFileSync(videoPath)
+      name: "demo.mp4",
+      mimeType: "video/mp4",
+      buffer: fs.readFileSync(videoPath),
     });
     await this.saveStorageState();
     // Fill desc in contenteditable div
-    const descInput = this.page.locator('[contenteditable][data-placeholder="添加描述"]');
+    const descInput = this.page.locator(
+      '[contenteditable][data-placeholder="添加描述"]',
+    );
     await descInput.fill(desc);
     // Fill short title in input field
-    const titleInput = this.page.locator('input[placeholder*="概括视频主要内容"]');
+    const titleInput = this.page.locator(
+      'input[placeholder*="概括视频主要内容"]',
+    );
     await titleInput.fill(brief);
     // Check the original declaration checkbox
-    const originalCheckbox = this.page.getByRole('checkbox', { name: '声明后，作品将展示原创标记，有机会获得广告收入。' });
+    const originalCheckbox = this.page.getByRole("checkbox", {
+      name: "声明后，作品将展示原创标记，有机会获得广告收入。",
+    });
     await originalCheckbox.check();
     // Check if protocol agreement dialog appears and check its checkbox
-    const protoWrapper = this.page.locator('.original-proto-wrapper').filter({ hasText: '我已阅读并同意《原创声明须知》和《使用条款》。如滥用声明，平台将驳回并予以相关处置。' }).first();
+    const protoWrapper = this.page
+      .locator(".original-proto-wrapper")
+      .filter({
+        hasText:
+          "我已阅读并同意《原创声明须知》和《使用条款》。如滥用声明，平台将驳回并予以相关处置。",
+      })
+      .first();
     if (await protoWrapper.isVisible()) {
-      const protoCheckbox = protoWrapper.locator('.ant-checkbox-input');
+      const protoCheckbox = protoWrapper.locator(".ant-checkbox-input");
       await protoCheckbox.check();
     }
     // Click declare original button
-    const declareOriginalButton = this.page.getByRole('button', { name: '声明原创' });
+    const declareOriginalButton = this.page.getByRole("button", {
+      name: "声明原创",
+    });
     await declareOriginalButton.click();
     await this.saveStorageState();
 
@@ -109,9 +138,15 @@ class PlaywrightClient {
     if (!dryrun) {
       let submitButton;
       while (true) {
-        submitButton = this.page.getByRole('button', { name: '发表' });
-        if (submitButton && !(await submitButton.evaluate(button => button.classList.contains('weui-desktop-btn_disabled')))) break;
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        submitButton = this.page.getByRole("button", { name: "发表" });
+        if (
+          submitButton &&
+          !(await submitButton.evaluate((button) =>
+            button.classList.contains("weui-desktop-btn_disabled"),
+          ))
+        )
+          break;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
       if (submitButton) await submitButton.click();
       await this.saveStorageState();
@@ -120,21 +155,20 @@ class PlaywrightClient {
   }
 }
 
-
 interface ArgConfig {
   [key: string]: {
-    type: 'string' | 'boolean';
+    type: "string" | "boolean";
     default?: any;
   };
 }
 
 function parseArgs() {
   const argConfig: ArgConfig = {
-    json: { type: 'string' },
-    video: { type: 'string' },
-    desc: { type: 'string' },
-    brief: { type: 'string' },
-    dryrun: { type: 'boolean', default: false }
+    json: { type: "string" },
+    video: { type: "string" },
+    desc: { type: "string" },
+    brief: { type: "string" },
+    dryrun: { type: "boolean", default: false },
   };
 
   const args = process.argv.slice(2);
@@ -149,15 +183,15 @@ function parseArgs() {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg.startsWith('--')) {
+    if (arg.startsWith("--")) {
       const key = arg.slice(2);
       if (key in argConfig) {
         const config = argConfig[key];
-        if (config.type === 'boolean') {
+        if (config.type === "boolean") {
           params[key] = true;
-        } else if (config.type === 'string') {
+        } else if (config.type === "string") {
           const nextArg = args[i + 1];
-          if (nextArg && !nextArg.startsWith('--')) {
+          if (nextArg && !nextArg.startsWith("--")) {
             params[key] = nextArg;
             i++; // Skip the next arg as it's the value
           }
@@ -172,11 +206,14 @@ function parseArgs() {
 function loadJsonConfig(jsonPath: string) {
   try {
     if (fs.existsSync(jsonPath)) {
-      const data = fs.readFileSync(jsonPath, 'utf8');
+      const data = fs.readFileSync(jsonPath, "utf8");
       return JSON.parse(data);
     }
   } catch (error) {
-    console.warn(`Warning: Could not load JSON config from ${jsonPath}:`, error);
+    console.warn(
+      `Warning: Could not load JSON config from ${jsonPath}:`,
+      error,
+    );
   }
   return {};
 }
@@ -186,13 +223,23 @@ async function main() {
   const cliArgs = parseArgs();
 
   // Load JSON config (relative to current working directory)
-  const jsonConfigPath = typeof cliArgs.json === 'string' ? cliArgs.json : undefined;
+  const jsonConfigPath =
+    typeof cliArgs.json === "string" ? cliArgs.json : undefined;
   const jsonConfig = jsonConfigPath ? loadJsonConfig(jsonConfigPath) : null;
 
   // Determine parameters with priority: CLI args > JSON > defaults
-  const videoPath = typeof cliArgs.video === 'string' ? cliArgs.video : (jsonConfig && jsonConfig.video) || "/Users/lucas/dev/wxvPost/demo.mp4";
-  const desc = typeof cliArgs.desc === 'string' ? cliArgs.desc : (jsonConfig && jsonConfig.desc) || "学习发表视频号";
-  const brief = typeof cliArgs.brief === 'string' ? cliArgs.brief : (jsonConfig && jsonConfig.brief) || "#学习  #视频号";
+  const videoPath =
+    typeof cliArgs.video === "string"
+      ? cliArgs.video
+      : (jsonConfig && jsonConfig.video) || "/Users/lucas/dev/wxvPost/demo.mp4";
+  const desc =
+    typeof cliArgs.desc === "string"
+      ? cliArgs.desc
+      : (jsonConfig && jsonConfig.desc) || "学习发表视频号";
+  const brief =
+    typeof cliArgs.brief === "string"
+      ? cliArgs.brief
+      : (jsonConfig && jsonConfig.brief) || "#学习  #视频号";
   const dryrun = cliArgs.dryrun === true;
 
   console.log("Using parameters:");
@@ -200,7 +247,6 @@ async function main() {
   console.log(`  Desc: ${desc}`);
   console.log(`  Title: ${brief}`);
   console.log(`  Dryrun: ${dryrun}`);
-
 
   const client = new PlaywrightClient();
   try {
@@ -215,18 +261,18 @@ async function main() {
       await client.navigate("https://channels.weixin.qq.com/login.html");
       console.log("Navigated to login page. Waiting for session...");
       while (!(await client.isSessionValid(["sessionid", "wxuin"]))) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before checking again
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before checking again
       }
       console.log("Session established.");
       await client.saveStorageState();
     }
-    await client.navigate("https://channels.weixin.qq.com/platform/post/create");
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await client.navigate(
+      "https://channels.weixin.qq.com/platform/post/create",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5000));
     let isSessionOkay2 = await client.isSessionValid(["sessionid", "wxuin"]);
     await client.saveStorageState();
     await client.postVideo(videoPath, desc, brief, dryrun);
-
-
   } catch (error) {
     console.error("Error:", error);
     // Keep browser open for manual inspection

@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 import shutil
 import subprocess
+import time
 
 from moviepy import AudioFileClip
 
@@ -61,6 +62,7 @@ class BackgroundMusicProcessor:
             self.logger.info(
                 "🎵 Background music will be added using FFmpeg post-processing"
             )
+            self.logger.info(self.background_music_info)
             self.logger.info("🔄 This avoids MoviePy audio mixing issues")
 
             return self.background_music_info
@@ -128,12 +130,16 @@ class BackgroundMusicProcessor:
             self.logger.info(f"🔧 Running FFmpeg command: {' '.join(ffmpeg_cmd)}")
 
             # Run FFmpeg command
+            start_time = time.perf_counter()
             result = subprocess.run(
                 ffmpeg_cmd,
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout
             )
+            end_time = time.perf_counter()
+            elapsed_time = end_time - start_time
+            self.logger.info(f"⏱️ FFmpeg subprocess took {elapsed_time:.2f} seconds")
 
             if result.returncode == 0:
                 self.logger.info(

@@ -251,9 +251,23 @@ function composeCommand(project: Project, projectPath: string): string {
     command += ` --title "${project.video_title}"`;
   }
 
+  if (project.subtitlePosition) {
+    command += ` --subtitle-position ${project.subtitlePosition}`;
+  }
+
   // Add background music
   if (project.bgmFile) {
     command += ` --mp3 "${path.join(process.env.AIV_VAULT_FOLDER || './vault', 'public', 'bgm', project.bgmFile)}"`;
+  }
+
+  if (project.bgmFadeIn) {
+    command += ` --bgm-fade-in ${project.bgmFadeIn}`;
+  }
+  if (project.bgmFadeOut) {
+    command += ` --bgm-fade-out ${project.bgmFadeOut}`;
+  }
+  if (project.bgmVolume) {
+    command += ` --bgm-volume ${project.bgmVolume}`;
   }
 
   if (project.genSubtitle) {

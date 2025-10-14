@@ -7,11 +7,6 @@ import path from 'path';
 
 export async function GET({ params, cookies }) {
   try {
-    console.log(
-      '📖 [PROJECT GET API] GET request to fetch project:',
-      params.projectId
-    );
-
     // Verify user session
     const session = await verifySession(cookies);
     if (!session) {
@@ -31,8 +26,6 @@ export async function GET({ params, cookies }) {
     if (!dbProject || dbProject.length === 0) {
       return error(404, { message: 'Project not found' });
     }
-
-    console.log('✅ [PROJECT GET API] Project fetched:', projectId);
 
     return json(dbProject[0]);
   } catch (err) {

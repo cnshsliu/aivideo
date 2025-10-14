@@ -154,7 +154,7 @@ def parse_args():
     parser.add_argument(
         "--title-position",
         type=float,
-        default=20,
+        default=15,
         help="Title position (percentage of screen height)",
     )
     parser.add_argument("--subtitle-font", help="Font for subtitle")
@@ -167,7 +167,7 @@ def parse_args():
     parser.add_argument(
         "--subtitle-position",
         type=float,
-        default=80,
+        default=85,
         help="Subtitle position (percentage of screen height)",
     )
     parser.add_argument(

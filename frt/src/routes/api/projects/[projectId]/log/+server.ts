@@ -7,11 +7,6 @@ import fs from 'fs/promises';
 
 export async function GET({ params, cookies }) {
   try {
-    console.log(
-      '📖 [LOG API] GET request to read log for progress:',
-      params.projectId
-    );
-
     // Verify user session
     const session = await verifySession(cookies);
     if (!session) {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { stopPropagation } from 'svelte/legacy';
+  import CopyProjectModal from './CopyProjectModal.svelte';
 
   interface Project {
     id: string;
@@ -22,6 +23,10 @@
 
   let showDeleteConfirm = $state(false);
   let projectToDelete = $state<{ id: string; name: string } | null>(null);
+  let showCopyProject = $state(false);
+  let projectToCopy = $state<Project | null>(null);
+  let copyProjectName = $state('');
+  let copyProjectTitle = $state('');
 
   function requestDelete(projectId: string, projectName: string) {
     projectToDelete = { id: projectId, name: projectName };
@@ -38,6 +43,27 @@
   function closeDeleteConfirm() {
     showDeleteConfirm = false;
     projectToDelete = null;
+  }
+
+  function requestCopy(project: Project) {
+    projectToCopy = project;
+    copyProjectName = crypto.randomUUID();
+    copyProjectTitle = '';
+    showCopyProject = true;
+  }
+
+  function handleCopyProject() {
+    if (projectToCopy) {
+      onCopyProject(projectToCopy, copyProjectName.trim(), copyProjectTitle.trim());
+      closeCopyModal();
+    }
+  }
+
+  function closeCopyModal() {
+    showCopyProject = false;
+    projectToCopy = null;
+    copyProjectName = '';
+    copyProjectTitle = '';
   }
 </script>
 
@@ -110,7 +136,10 @@
               </svg>
             </button>
             <button
-              onclick={() => onCopyProject(project)}
+              onclick={(e) => {
+                e.stopPropagation();
+                requestCopy(project);
+              }}
               class="text-green-600 hover:text-green-800 transition-colors"
               title="Copy Project"
               aria-label="Copy Project"
@@ -195,3 +224,12 @@
     </div>
   </div>
 {/if}
+
+<!-- Copy Project Modal -->
+<CopyProjectModal
+  {showCopyProject}
+  bind:copyProjectName
+  bind:copyProjectTitle
+  onCopyProject={handleCopyProject}
+  onClose={closeCopyModal}
+/>

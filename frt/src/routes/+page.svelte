@@ -223,10 +223,12 @@
     }
   }
 
-  async function copyProject(project: Project) {
+  async function copyProject(project: Project, name?: string, title?: string) {
     try {
       const response = await fetch(`/api/projects/${project.id}/copy`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, title })
       });
 
       if (response.ok) {

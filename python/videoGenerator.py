@@ -843,9 +843,9 @@ class VideoGenerator:
             if font_size is None:
                 font_size = 48
             subtitle_font = getattr(self.args, "subtitle_font", "Arial") or "Arial"
-            subtitle_position = getattr(self.args, "subtitle_position", 80)
+            subtitle_position = getattr(self.args, "subtitle_position", 85)
             if subtitle_position is None:
-                subtitle_position = 80
+                subtitle_position = 85
 
             # Check if we need Chinese font support
             needs_chinese_font = any(
@@ -1626,14 +1626,30 @@ class VideoGenerator:
 
         # Add start clip if available
         if self.start_file:
-            start_clip = self._safe_load_video_clip(self.start_file)
-            if start_clip is not None:
-                # Resize start clip to fit mobile aspect ratio (remove black borders)
+            if self.start_file.suffix.lower() in {
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".gif",
+                ".bmp",
+                ".tiff",
+            }:
+                # Handle image file - create static 3-second clip
+                start_clip = ImageClip(str(self.start_file)).with_duration(3.0)
+                # Resize image to mobile aspect ratio
                 start_clip = self._resize_to_mobile_aspect_ratio(start_clip)
                 self.logger.info(
-                    f"Resized start clip to mobile aspect ratio: {start_clip.w}x{start_clip.h}"
+                    f"Created static image clip from {self.start_file.name} (3.0s)"
                 )
+            else:
+                # Handle video file
+                start_clip = self._safe_load_video_clip(self.start_file)
+                if start_clip is None:
+                    self.logger.warning(
+                        f"Skipping corrupted start clip: {self.start_file}"
+                    )
 
+            if start_clip is not None:
                 # Make start clip silent if requested
                 start_clip = start_clip.without_audio()
                 # Add title to start clip if we have a title
@@ -1643,8 +1659,6 @@ class VideoGenerator:
                     )
                 final_clips.append(start_clip)
                 self.logger.info(f"Added start clip: {start_clip.duration:.2f}s")
-            else:
-                self.logger.warning(f"Skipping corrupted start clip: {self.start_file}")
 
         # Add main content with audio
         final_clips.append(main_content)

@@ -48,6 +48,7 @@
     showLogs: boolean;
     generationLogs: string;
     onGenerateVideo: () => void;
+    onCancelVideo?: () => void;
     onShowMaterialsModal: (onCloseCallback?: () => void) => void;
     onUpdateProject: (project: Project) => void;
     onPreviewMedia: (media: {
@@ -64,6 +65,7 @@
     showLogs,
     generationLogs,
     onGenerateVideo,
+    onCancelVideo,
     onShowMaterialsModal,
     onUpdateProject,
     onPreviewMedia
@@ -74,6 +76,7 @@
   let loadingMaterials = $state(false);
   let projectMaterials = $state<Material[]>([]);
   let generatingStaticSubtitles = $state(false);
+  let abortController: AbortController | null = $state(null);
 
   // Computed property to sort project materials
   let sortedProjectMaterials = $derived(
@@ -162,7 +165,7 @@
       videoTitle = selectedProject.video_title ?? selectedProject.title;
       titleFont = selectedProject.titleFont ?? 'Hiragino Sans GB';
       titleFontSize = selectedProject.titleFontSize ?? 72;
-      titlePosition = selectedProject.titlePosition ?? 20;
+      titlePosition = selectedProject.titlePosition ?? 15;
       // Initialize media settings from selectedProject
       sortOrder = selectedProject.sortOrder ?? 'alphnum';
       keepClipLength = selectedProject.keepClipLength ?? false;
@@ -170,7 +173,7 @@
       // Initialize subtitle settings from selectedProject
       subtitleFont = selectedProject.subtitleFont ?? 'Hiragino Sans GB';
       subtitleFontSize = selectedProject.subtitleFontSize ?? 48;
-      subtitlePosition = selectedProject.subtitlePosition ?? 80;
+      subtitlePosition = selectedProject.subtitlePosition ?? 85;
       genSubtitle = selectedProject.genSubtitle ?? false;
       genVoice = selectedProject.genVoice ?? false;
       llmProvider = selectedProject.llmProvider ?? 'qwen';
@@ -178,7 +181,7 @@
       bgmFile = selectedProject.bgmFile ?? '';
       bgmFadeIn = selectedProject.bgmFadeIn ?? 3.0;
       bgmFadeOut = selectedProject.bgmFadeOut ?? 3.0;
-      bgmVolume = selectedProject.bgmVolume ?? 0.3;
+      bgmVolume = selectedProject.bgmVolume ?? 0.2;
     }
   });
 
@@ -196,7 +199,7 @@
   let videoTitle = $state(selectedProject.video_title ?? selectedProject.title);
   let titleFont = $state(selectedProject.titleFont ?? 'Hiragino Sans GB');
   let titleFontSize = $state(selectedProject.titleFontSize ?? 72);
-  let titlePosition = $state(selectedProject.titlePosition ?? 20);
+  let titlePosition = $state(selectedProject.titlePosition ?? 15);
   // Media settings state variables
   let sortOrder = $state(selectedProject.sortOrder ?? 'alphnum');
   let keepClipLength = $state(selectedProject.keepClipLength ?? false);
@@ -204,7 +207,7 @@
   // Subtitle settings state variables
   let subtitleFont = $state(selectedProject.subtitleFont ?? 'Hiragino Sans GB');
   let subtitleFontSize = $state(selectedProject.subtitleFontSize ?? 48);
-  let subtitlePosition = $state(selectedProject.subtitlePosition ?? 80);
+  let subtitlePosition = $state(selectedProject.subtitlePosition ?? 85);
   let genSubtitle = $state(selectedProject.genSubtitle ?? false);
   let genVoice = $state(selectedProject.genVoice ?? false);
   let llmProvider = $state(selectedProject.llmProvider ?? 'qwen');
@@ -212,12 +215,14 @@
   let bgmFile = $state(selectedProject.bgmFile ?? '');
   let bgmFadeIn = $state(selectedProject.bgmFadeIn ?? 3.0);
   let bgmFadeOut = $state(selectedProject.bgmFadeOut ?? 3.0);
-  let bgmVolume = $state(selectedProject.bgmVolume ?? 0.3);
+  let bgmVolume = $state(selectedProject.bgmVolume ?? 0.2);
   // Background music files
   let bgmFiles = $state<string[]>([]);
   let audioPlayer = $state<HTMLAudioElement | null>(null);
   let isPlaying = $state(false);
   let isFullScreen = $state(false);
+  let isSubtitleFullScreen = $state(false);
+  let isLogsFullScreen = $state(false);
   let saveTimeout = $state<any>(null);
 
   // Load BGM files
@@ -549,7 +554,7 @@
     videoTitle = selectedProject.video_title ?? selectedProject.title;
     titleFont = 'Hiragino Sans GB';
     titleFontSize = 72; // Correct default value
-    titlePosition = 20; // Correct default value
+    titlePosition = 15; // Correct default value
 
     // Media Settings defaults
     sortOrder = 'alphnum';
@@ -559,7 +564,7 @@
     // Subtitle Settings defaults
     subtitleFont = 'Hiragino Sans GB';
     subtitleFontSize = 48; // Correct default value
-    subtitlePosition = 80; // Correct default value
+    subtitlePosition = 85; // Correct default value
     genSubtitle = false; // Correct default value
     genVoice = false;
     llmProvider = 'qwen';
@@ -568,7 +573,7 @@
     bgmFile = '';
     bgmFadeIn = 3.0; // Correct default value
     bgmFadeOut = 3.0; // Correct default value
-    bgmVolume = 0.3; // Correct default value
+    bgmVolume = 0.2; // Correct default value
   }
 
   // Load BGM files when component mounts
@@ -627,6 +632,8 @@
     // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
     genSubtitle = false;
     generatingStaticSubtitles = true;
+    abortController = new AbortController();
+
     try {
       const response = await fetch(
         `/api/projects/${selectedProject.id}/generate-static-subtitles`,
@@ -636,7 +643,8 @@
           body: JSON.stringify({
             folder: selectedProject.name
           }),
-          credentials: 'include'
+          credentials: 'include',
+          signal: abortController.signal
         }
       );
 
@@ -654,9 +662,23 @@
         alert(errorData.message || 'Failed to generate static subtitles');
       }
     } catch (err) {
-      alert('Network error');
-      console.error(err);
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('Static subtitle generation was cancelled');
+      } else {
+        alert('Network error');
+        console.error(err);
+      }
     } finally {
+      generatingStaticSubtitles = false;
+      abortController = null;
+    }
+  }
+
+  // Function to cancel static subtitle generation
+  function cancelStaticSubtitlesGeneration(): void {
+    if (abortController) {
+      abortController.abort();
+      abortController = null;
       generatingStaticSubtitles = false;
     }
   }
@@ -736,7 +758,7 @@
               </button>
             </div>
             <!-- Result video preview and download buttons -->
-            {#if selectedProject.progressStep === 'complete' && selectedProject.progressResult}
+            {#if !generatingVideo && selectedProject.progressStep === 'complete' && selectedProject.progressResult}
               <div class="flex items-center gap-2 ms-5">
                 <button
                   onclick={() => previewResultVideo(selectedProject.id)}
@@ -849,23 +871,35 @@
           </button>
         </div>
         <button
-          onclick={async () => {
+          onclick={generatingVideo ? (onCancelVideo ? onCancelVideo : () => {}) : async () => {
+            // Check for empty required fields
+            if (!staticSubtitleContent || !staticSubtitleContent.trim()) {
+              alert(
+                'Please enter static subtitle content before generating video.'
+              );
+              return;
+            }
+            if (!descContent || !descContent.trim()) {
+              alert('Please enter video description before generating video.');
+              return;
+            }
+            if (!briefContent || !briefContent.trim()) {
+              alert('Please enter brief overview before generating video.');
+              return;
+            }
+
             // genSubttile用于控制python命令行运行时，是否生成字幕
             // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
             genSubtitle = false;
             await saveContent();
+
             onGenerateVideo();
           }}
-          disabled={generatingVideo}
+          disabled={false}
           class="rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-white transition-all duration-200 hover:from-purple-600 hover:to-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {#if generatingVideo}
-            <div class="flex items-center space-x-2">
-              <div
-                class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
-              ></div>
-              <span>Generating...</span>
-            </div>
+            Cancel Generation
           {:else}
             Generate Video
           {/if}
@@ -916,7 +950,7 @@
       </div-->
 
       <!-- Generate Voice -->
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between my-2">
         <span class="text-sm font-medium text-gray-700">Generate Voice</span>
         <button
           onclick={() => (genVoice = !genVoice)}
@@ -954,32 +988,38 @@
     >
       <h3 class="mb-4 text-lg font-semibold">Video Title</h3>
       <div class="flex items-center justify-between">
-        <input
+        <textarea
           bind:value={videoTitle}
-          class="text-xl font-semibold border rounded px-2 py-1 w-full"
-        />
+          placeholder="Enter video title..."
+          class="text-xl font-semibold border rounded px-2 py-2 w-full resize-none"
+          rows="2"
+        ></textarea>
       </div>
       <div class="flex items-center justify-between my-2">
         <h3 class="text-lg font-semibold">Subtitle</h3>
-        <button
-          id="btn-gen-static-subtitles"
-          class="rounded-lg bg-gray-500 px-4 py-2 text-white transition-all duration-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={generatingStaticSubtitles}
-          onclick={generateStaticSubtitles}
-        >
-          {#if generatingStaticSubtitles}
-            <div class="flex items-center space-x-2">
-              <div
-                class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
-              ></div>
-              <span>Generating...</span>
-            </div>
-          {:else}
-            Generate
-          {/if}
-        </button>
+        <div class="flex gap-2">
+          <button
+            onclick={() => (isSubtitleFullScreen = !isSubtitleFullScreen)}
+            class="text-blue-500 hover:text-blue-700 text-sm"
+          >
+            {isSubtitleFullScreen ? 'Exit Full Screen' : 'Full Screen'}
+          </button>
+          <button
+            id="btn-gen-static-subtitles"
+            class="rounded-lg bg-gray-500 px-4 py-2 text-white transition-all duration-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={false}
+            onclick={generatingStaticSubtitles ? cancelStaticSubtitlesGeneration : generateStaticSubtitles}
+          >
+            {#if generatingStaticSubtitles}
+              Cancel
+            {:else}
+              Generate
+            {/if}
+          </button>
+        </div>
       </div>
       <textarea
+        id="staticSubtitleContent_editor"
         bind:value={staticSubtitleContent}
         placeholder="Enter static subtitle text (optional)..."
         class="h-48 w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
@@ -1412,7 +1452,7 @@
                   type="range"
                   min="0"
                   max="1"
-                  step="0.1"
+                  step="0.01"
                   bind:value={bgmVolume}
                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                 />
@@ -1641,12 +1681,64 @@
     </div>
   {/if}
 
+  <!-- Full Screen Subtitle Editor Modal -->
+  {#if isSubtitleFullScreen}
+    <div class="fixed inset-0 z-50 bg-white">
+      <div class="flex flex-col h-full">
+        <div
+          class="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50"
+        >
+          <h3 class="text-lg font-semibold">Subtitle Editor (Full Screen)</h3>
+          <button
+            onclick={() => (isSubtitleFullScreen = false)}
+            class="text-red-500 hover:text-red-700 text-xl font-bold">×</button
+          >
+        </div>
+        <div class="flex-1 p-4 overflow-auto">
+          <textarea
+            bind:value={staticSubtitleContent}
+            placeholder="Enter static subtitle text (optional)..."
+            class="w-full h-full resize-none border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 text-base"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Full Screen Logs Modal -->
+  {#if isLogsFullScreen}
+    <div class="fixed inset-0 z-50 bg-white">
+      <div class="flex flex-col h-full">
+        <div
+          class="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50"
+        >
+          <h3 class="text-lg font-semibold">Generation Logs (Full Screen)</h3>
+          <button
+            onclick={() => (isLogsFullScreen = false)}
+            class="text-red-500 hover:text-red-700 text-xl font-bold">×</button
+          >
+        </div>
+        <div class="flex-1 p-4 overflow-auto bg-gray-900">
+          <pre class="text-sm text-green-400 font-mono">{generationLogs}</pre>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Logs -->
   {#if showLogs}
     <div
       class="rounded-2xl border border-white/20 bg-white/60 p-6 shadow-lg backdrop-blur-sm"
     >
-      <h3 class="mb-4 text-lg font-semibold">Generation Logs</h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold">Generation Logs</h3>
+        <button
+          onclick={() => (isLogsFullScreen = !isLogsFullScreen)}
+          class="text-blue-500 hover:text-blue-700 text-sm"
+        >
+          {isLogsFullScreen ? 'Exit Full Screen' : 'Full Screen'}
+        </button>
+      </div>
       <div class="h-48 overflow-auto rounded-lg bg-gray-900 p-4">
         <pre class="text-sm text-green-400 font-mono">{generationLogs}</pre>
       </div>

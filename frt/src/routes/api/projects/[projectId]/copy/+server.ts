@@ -7,7 +7,7 @@ import path from 'path';
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
 
-export async function POST({ params, cookies }) {
+export async function POST({ params, cookies, request }) {
   try {
     console.log(
       '📋 [PROJECT COPY API] POST request to copy project:',
@@ -22,6 +22,7 @@ export async function POST({ params, cookies }) {
     }
 
     const { projectId } = params;
+    const { name, title } = await request.json();
 
     // Get project from database first
     const dbProject = await db
@@ -47,20 +48,23 @@ export async function POST({ params, cookies }) {
     }
 
     try {
-      // Generate new project name (copy)
-      let newProjectName = `${projectName}-copy`;
+      // Use provided name or generate new project name (copy)
+      let newProjectName = name || `${projectName}-copy`;
       let counter = 1;
       let newProjectPath = path.join(userPath, newProjectName);
 
-      while (
-        await fs
-          .access(newProjectPath)
-          .then(() => true)
-          .catch(() => false)
-      ) {
-        newProjectName = `${projectName}-copy-${counter}`;
-        newProjectPath = path.join(userPath, newProjectName);
-        counter++;
+      // If name was provided, check if it already exists and add counter if needed
+      if (name) {
+        while (
+          await fs
+            .access(newProjectPath)
+            .then(() => true)
+            .catch(() => false)
+        ) {
+          newProjectName = `${name}-${counter}`;
+          newProjectPath = path.join(userPath, newProjectName);
+          counter++;
+        }
       }
 
       // Copy project directory recursively
@@ -75,7 +79,7 @@ export async function POST({ params, cookies }) {
         .values({
           id: newProjectId,
           name: newProjectName,
-          title: `${dbProject[0].title} (Copy)`,
+          title: title || `${dbProject[0].title} (Copy)`,
           video_title: dbProject[0].video_title || '',
           userId: session.userId,
           prompt: dbProject[0].prompt,

@@ -85,10 +85,6 @@ export async function validateSessionToken(token: string) {
     session.expiresAt = new Date(Date.now() + DAY_IN_MS * 30);
   }
 
-  console.log(
-    '✅ [AUTH] Session validated successfully for user:',
-    userRecord.username
-  );
   return {
     session,
     user: { id: userRecord.id, username: userRecord.username }
