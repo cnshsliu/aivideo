@@ -1014,10 +1014,16 @@ class VideoGenerator:
                                 line_clip = line_clip.with_duration(subtitle_duration)  # type: ignore
 
                                 # Create background box for subtitle line
-                                bg_clip = ColorClip(
-                                    size=(line_clip.w + 20, line_clip.h + 10),
-                                    color=(0, 0, 0)  # Black
-                                ).with_opacity(0.1).with_position((subtitle_x - 10, subtitle_y - 5)).with_start(start_time).with_duration(subtitle_duration)
+                                bg_clip = (
+                                    ColorClip(
+                                        size=(line_clip.w + 20, line_clip.h + 10),
+                                        color=(0, 0, 0),  # Black
+                                    )
+                                    .with_opacity(0.1)
+                                    .with_position((subtitle_x - 10, subtitle_y - 5))
+                                    .with_start(start_time)
+                                    .with_duration(subtitle_duration)
+                                )
 
                                 # Add background and text as separate clips (background below text)
                                 text_clips.append(bg_clip)
@@ -1124,10 +1130,16 @@ class VideoGenerator:
                         text_clip = text_clip.with_duration(subtitle_duration)
 
                         # Create background box for subtitle
-                        bg_clip = ColorClip(
-                            size=(text_clip.w + 20, text_clip.h + 10),
-                            color=(0, 0, 0)  # Black
-                        ).with_opacity(0.1).with_position((subtitle_x - 10, subtitle_y - 5)).with_start(start_time).with_duration(subtitle_duration)
+                        bg_clip = (
+                            ColorClip(
+                                size=(text_clip.w + 20, text_clip.h + 10),
+                                color=(0, 0, 0),  # Black
+                            )
+                            .with_opacity(0.1)
+                            .with_position((subtitle_x - 10, subtitle_y - 5))
+                            .with_start(start_time)
+                            .with_duration(subtitle_duration)
+                        )
 
                         # Add background and text as separate clips (background below text)
                         subtitle_clips.append(bg_clip)
@@ -1182,21 +1194,23 @@ class VideoGenerator:
                 self.logger.error(f"Bodytext file does not exist: {bodytext_file}")
                 return []
 
-            with open(bodytext_path, 'r', encoding='utf-8') as f:
+            with open(bodytext_path, "r", encoding="utf-8") as f:
                 bodyText = f.read().strip()
 
             if not bodyText:
                 self.logger.warning("Bodytext file is empty")
                 return []
 
-            self.logger.info(f"Read bodytext from {bodytext_file}: {len(bodyText)} characters")
+            self.logger.info(
+                f"Read bodytext from {bodytext_file}: {len(bodyText)} characters"
+            )
 
             # Get bodyTextLength (0, 1, 2, default 0)
             bodyTextLength = getattr(self.args, "bodytextlength", 0)
             self.logger.info(f"Bodytext length mode: {bodyTextLength}")
 
             # Split bodyText into lines (no wrapping)
-            bodyText_lines = bodyText.split('\n')
+            bodyText_lines = bodyText.split("\n")
             self.logger.info(f"Bodytext has {len(bodyText_lines)} lines")
 
             # Create text clips for each line
@@ -1207,14 +1221,16 @@ class VideoGenerator:
             video_height = 1920
 
             # Font settings for body text (smaller than subtitles)
-            font_size = 36
+            font_size = 48
             font_color = "white"
             bg_color = (0, 0, 0)  # Black background
             bg_opacity = 0.7
 
             # Check if we need Chinese font support
             needs_chinese_font = any(contains_chinese(line) for line in bodyText_lines)
-            font_name = get_chinese_compatible_font("Arial") if needs_chinese_font else "Arial"
+            font_name = (
+                get_chinese_compatible_font("Arial") if needs_chinese_font else "Arial"
+            )
 
             # Calculate line height and positioning
             line_height = font_size + 10  # Spacing between lines
@@ -1250,15 +1266,16 @@ class VideoGenerator:
 
             # Create single background clip for all text lines
             if valid_lines > 0:
-                bg_width = int(max_text_width + 40)
-                bg_height = int(total_text_height + 20)  # Cover all lines plus padding
+                bg_width = int(max_text_width + 20)
+                bg_height = int(total_text_height + 10)  # Cover all lines plus padding
                 bg_x = (video_width - bg_width) // 2  # Center horizontally
                 bg_y = start_y - 10  # Offset above first text line
 
-                bg_clip = ColorClip(
-                    size=(bg_width, bg_height),
-                    color=bg_color
-                ).with_opacity(bg_opacity).with_position((bg_x, bg_y))
+                bg_clip = (
+                    ColorClip(size=(bg_width, bg_height), color=bg_color)
+                    .with_opacity(bg_opacity)
+                    .with_position((bg_x, bg_y))
+                )
 
             # Second pass: create and position text clips
             for i, line_text in enumerate(bodyText_lines):
@@ -1318,17 +1335,23 @@ class VideoGenerator:
                 else:
                     bodyTextDuration = total_duration
 
-            self.logger.info(f"Bodytext timing: start={bodyTextStartAt:.2f}s, duration={bodyTextDuration:.2f}s")
+            self.logger.info(
+                f"Bodytext timing: start={bodyTextStartAt:.2f}s, duration={bodyTextDuration:.2f}s"
+            )
 
             # Apply timing to all clips
             timed_text_clips = []
 
             for text_clip in text_clips:
-                timed_text_clip = text_clip.with_start(bodyTextStartAt).with_duration(bodyTextDuration)
+                timed_text_clip = text_clip.with_start(bodyTextStartAt).with_duration(
+                    bodyTextDuration
+                )
                 timed_text_clips.append(timed_text_clip)
 
             # Apply timing to single background clip
-            timed_bg_clip = bg_clip.with_start(bodyTextStartAt).with_duration(bodyTextDuration)
+            timed_bg_clip = bg_clip.with_start(bodyTextStartAt).with_duration(
+                bodyTextDuration
+            )
 
             # Return background clip first (so text appears on top), then all text clips
             return [timed_bg_clip] + timed_text_clips
@@ -1873,22 +1896,40 @@ class VideoGenerator:
 
         # Add closing clip if available
         if self.closing_file:
-            closing_clip = self._safe_load_video_clip(self.closing_file)
-            if closing_clip is not None:
-                # Resize closing clip to fit mobile aspect ratio (remove black borders)
+            if self.closing_file.suffix.lower() in {
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".gif",
+                ".bmp",
+                ".tiff",
+            }:
+                # Handle image file - create static 1-second clip
+                closing_clip = ImageClip(str(self.closing_file)).with_duration(1.0)
+                # Resize image to mobile aspect ratio
                 closing_clip = self._resize_to_mobile_aspect_ratio(closing_clip)
                 self.logger.info(
-                    f"Resized closing clip to mobile aspect ratio: {closing_clip.w}x{closing_clip.h}"
+                    f"Created static image clip from {self.closing_file.name} (1.0s)"
                 )
+            else:
+                # Handle video file
+                closing_clip = self._safe_load_video_clip(self.closing_file)
+                if closing_clip is None:
+                    self.logger.warning(
+                        f"Skipping corrupted closing clip: {self.closing_file}"
+                    )
+                else:
+                    # Resize closing clip to fit mobile aspect ratio (remove black borders)
+                    closing_clip = self._resize_to_mobile_aspect_ratio(closing_clip)
+                    self.logger.info(
+                        f"Resized closing clip to mobile aspect ratio: {closing_clip.w}x{closing_clip.h}"
+                    )
 
+            if closing_clip is not None:
                 # Make closing clip silent if requested
                 closing_clip = closing_clip.without_audio()
                 final_clips.append(closing_clip)
                 self.logger.info(f"Added closing clip: {closing_clip.duration:.2f}s")
-            else:
-                self.logger.warning(
-                    f"Skipping corrupted closing clip: {self.closing_file}"
-                )
 
         # Step 7: Create final video
         self.logger.info("Step 7: Creating final video...")
