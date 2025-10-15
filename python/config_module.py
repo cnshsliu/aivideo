@@ -231,4 +231,10 @@ def parse_args():
         default=0,
         help="Body text duration (0,1,2, default: 0)",
     )
+    parser.add_argument(
+        "--bodytext_animation",
+        choices=["none", "wipe_down"],
+        default="none",
+        help="Body text animation type (none, wipe_down, default: none)",
+    )
     return parser.parse_args()

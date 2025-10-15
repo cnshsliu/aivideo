@@ -1339,19 +1339,49 @@ class VideoGenerator:
                 f"Bodytext timing: start={bodyTextStartAt:.2f}s, duration={bodyTextDuration:.2f}s"
             )
 
-            # Apply timing to all clips
-            timed_text_clips = []
+            # Check if wipe down animation is enabled
+            bodytext_animation = getattr(self.args, "bodytext_animation", "none")
 
-            for text_clip in text_clips:
-                timed_text_clip = text_clip.with_start(bodyTextStartAt).with_duration(
+            if bodytext_animation == "wipe_down":
+                # Apply sequential wipe down animation timing to text clips
+                timed_text_clips = []
+
+                # Animation settings for wipe down effect
+                line_delay = 0.5  # Delay between each line appearing (seconds)
+                fade_duration = 0.3  # Fade in duration for each line (seconds)
+
+                for i, text_clip in enumerate(text_clips):
+                    # Calculate timing for downward erase animation
+                    # Each line appears with a delay, creating the wipe down effect
+                    line_start_time = bodyTextStartAt + i * line_delay
+                    line_end_time = bodyTextStartAt + bodyTextDuration
+
+                    # Apply fade in effect with proper timing
+                    timed_text_clip = text_clip.with_start(line_start_time).with_duration(
+                        line_end_time - line_start_time
+                    )
+                    timed_text_clip = timed_text_clip.with_effects([FadeIn(fade_duration)])
+
+                    timed_text_clips.append(timed_text_clip)
+
+                # Apply timing to single background clip (background appears immediately)
+                timed_bg_clip = bg_clip.with_start(bodyTextStartAt).with_duration(
                     bodyTextDuration
                 )
-                timed_text_clips.append(timed_text_clip)
+            else:
+                # Apply static timing (all lines appear simultaneously)
+                timed_text_clips = []
 
-            # Apply timing to single background clip
-            timed_bg_clip = bg_clip.with_start(bodyTextStartAt).with_duration(
-                bodyTextDuration
-            )
+                for text_clip in text_clips:
+                    timed_text_clip = text_clip.with_start(bodyTextStartAt).with_duration(
+                        bodyTextDuration
+                    )
+                    timed_text_clips.append(timed_text_clip)
+
+                # Apply timing to single background clip
+                timed_bg_clip = bg_clip.with_start(bodyTextStartAt).with_duration(
+                    bodyTextDuration
+                )
 
             # Return background clip first (so text appears on top), then all text clips
             return [timed_bg_clip] + timed_text_clips
