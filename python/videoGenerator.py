@@ -11,6 +11,7 @@ from moviepy import (
     CompositeVideoClip,
     concatenate_videoclips,
     vfx,
+    ColorClip,
     ImageClip,
 )
 from moviepy.video.fx import FadeIn, FadeOut
@@ -1010,6 +1011,15 @@ class VideoGenerator:
                                 )
                                 line_clip = line_clip.with_start(start_time)  # type: ignore
                                 line_clip = line_clip.with_duration(subtitle_duration)  # type: ignore
+
+                                # Create background box for subtitle line
+                                bg_clip = ColorClip(
+                                    size=(line_clip.w + 20, line_clip.h + 10),
+                                    color=(0, 0, 0)  # Black
+                                ).with_opacity(0.1).with_position((subtitle_x - 10, subtitle_y - 5)).with_start(start_time).with_duration(subtitle_duration)
+
+                                # Add background and text as separate clips (background below text)
+                                text_clips.append(bg_clip)
                                 text_clips.append(line_clip)
 
                         subtitle_clips.extend(text_clips)
@@ -1111,6 +1121,15 @@ class VideoGenerator:
                         text_clip = text_clip.with_position((subtitle_x, subtitle_y))
                         text_clip = text_clip.with_start(start_time)
                         text_clip = text_clip.with_duration(subtitle_duration)
+
+                        # Create background box for subtitle
+                        bg_clip = ColorClip(
+                            size=(text_clip.w + 20, text_clip.h + 10),
+                            color=(0, 0, 0)  # Black
+                        ).with_opacity(0.1).with_position((subtitle_x - 10, subtitle_y - 5)).with_start(start_time).with_duration(subtitle_duration)
+
+                        # Add background and text as separate clips (background below text)
+                        subtitle_clips.append(bg_clip)
                         subtitle_clips.append(text_clip)
                     self.logger.debug(
                         f"Added subtitle: '{text[:30]}...' at {start_time:.2f}s for {subtitle_duration:.2f}s"
@@ -1210,12 +1229,12 @@ class VideoGenerator:
                 standard_portrait_sizes = [
                     (1080, 1920),  # Full HD portrait - added this
                     (1920, 1080),  # Full HD portrait (landscape notation)
-                    (1280, 720),   # HD portrait
-                    (720, 1280),   # HD portrait (landscape notation)
-                    (960, 540),    # qHD portrait
-                    (540, 960),    # qHD portrait (landscape notation)
-                    (854, 480),    # FWVGA portrait
-                    (480, 854),    # FWVGA portrait (landscape notation)
+                    (1280, 720),  # HD portrait
+                    (720, 1280),  # HD portrait (landscape notation)
+                    (960, 540),  # qHD portrait
+                    (540, 960),  # qHD portrait (landscape notation)
+                    (854, 480),  # FWVGA portrait
+                    (480, 854),  # FWVGA portrait (landscape notation)
                 ]
 
                 is_standard_ratio = (width, height) in standard_portrait_sizes
