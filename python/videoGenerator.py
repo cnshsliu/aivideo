@@ -1206,15 +1206,19 @@ class VideoGenerator:
                 portrait_ratio = height / width
                 target_portrait_ratio = 16 / 9  # 1.777...
 
-                # Standard mobile portrait sizes (height x width)
+                # Standard mobile portrait sizes (width x height)
                 standard_portrait_sizes = [
-                    (1920, 1080),  # Full HD portrait
-                    (1280, 720),  # HD portrait
-                    (960, 540),  # qHD portrait
-                    (854, 480),  # FWVGA portrait
+                    (1080, 1920),  # Full HD portrait - added this
+                    (1920, 1080),  # Full HD portrait (landscape notation)
+                    (1280, 720),   # HD portrait
+                    (720, 1280),   # HD portrait (landscape notation)
+                    (960, 540),    # qHD portrait
+                    (540, 960),    # qHD portrait (landscape notation)
+                    (854, 480),    # FWVGA portrait
+                    (480, 854),    # FWVGA portrait (landscape notation)
                 ]
 
-                is_standard_ratio = (height, width) in standard_portrait_sizes
+                is_standard_ratio = (width, height) in standard_portrait_sizes
                 tolerance = 0.001  # 0.1% tolerance
                 is_correct_ratio = (
                     abs(portrait_ratio - target_portrait_ratio) < tolerance
@@ -1647,6 +1651,12 @@ class VideoGenerator:
                 if start_clip is None:
                     self.logger.warning(
                         f"Skipping corrupted start clip: {self.start_file}"
+                    )
+                else:
+                    # Resize start clip to fit mobile aspect ratio (remove black borders)
+                    start_clip = self._resize_to_mobile_aspect_ratio(start_clip)
+                    self.logger.info(
+                        f"Resized start clip to mobile aspect ratio: {start_clip.w}x{start_clip.h}"
                     )
 
             if start_clip is not None:

@@ -10,6 +10,8 @@
     staticSubtitle?: string;
     desc?: string;
     brief?: string;
+    bodytext?: string;
+    bodytextLength?: number;
     keepTitle?: boolean;
     addTimestampToTitle?: boolean;
     titleFont?: string;
@@ -160,6 +162,8 @@
       promptContent = selectedProject.prompt || '';
       descContent = selectedProject.desc || '';
       briefContent = selectedProject.brief || '';
+      bodytextContent = selectedProject.bodytext || '';
+      bodytextLengthValue = selectedProject.bodytextLength ?? 1;
       // Initialize title settings from selectedProject
       keepTitle = selectedProject.keepTitle ?? true;
       addTimestampToTitle = selectedProject.addTimestampToTitle ?? false;
@@ -192,6 +196,8 @@
   let promptContent = $state(selectedProject.prompt || '');
   let descContent = $state(selectedProject.desc || '');
   let briefContent = $state(selectedProject.brief || '');
+  let bodytextContent = $state(selectedProject.bodytext || '');
+  let bodytextLengthValue = $state(selectedProject.bodytextLength ?? 1);
   // Title settings state variables
   let keepTitle = $state(selectedProject.keepTitle ?? true);
   let addTimestampToTitle = $state(
@@ -223,8 +229,12 @@
   let isPlaying = $state(false);
   let isFullScreen = $state(false);
   let isSubtitleFullScreen = $state(false);
+  let isBodytextFullScreen = $state(false);
   let isLogsFullScreen = $state(false);
   let saveTimeout = $state<any>(null);
+  let subtitleTextarea = $state<HTMLTextAreaElement | null>(null);
+  let logsContainer = $state<HTMLDivElement | null>(null);
+  let logsFullScreenContainer = $state<HTMLDivElement | null>(null);
 
   // Load BGM files
   async function loadBgmFiles() {
@@ -376,6 +386,8 @@
         staticSubtitleContent = project.staticSubtitle || '';
         descContent = project.desc || '';
         briefContent = project.brief || '';
+        bodytextContent = project.bodytext || '';
+        bodytextLengthValue = project.bodytextLength ?? 1;
         onUpdateProject(project);
       } else {
         alert('Failed to load content');
@@ -391,6 +403,10 @@
       // genSubttile用于控制python命令行运行时，是否生成字幕
       // 我们现在总是生成静态字幕，使用静态字幕，这里，总是强制genSubtitle=false
       genSubtitle = false;
+      if (![0, 1, 2].includes(bodytextLengthValue)) {
+        bodytextLengthValue = 0;
+      }
+      bodytextContent = bodytextContent.trim();
       const response = await fetch(`/api/projects/${selectedProject.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -402,6 +418,8 @@
           staticSubtitle: staticSubtitleContent,
           desc: descContent,
           brief: briefContent,
+          bodytext: bodytextContent,
+          bodytextLength: bodytextLengthValue,
           // Include title settings in save
           keepTitle,
           addTimestampToTitle,
@@ -433,6 +451,8 @@
           staticSubtitle: staticSubtitleContent,
           desc: descContent,
           brief: briefContent,
+          bodytext: bodytextContent,
+          bodytextLength: bodytextLengthValue,
           video_title: videoTitle,
           // Update project with new title settings
           keepTitle,
@@ -547,7 +567,10 @@
     editingAliasValue = '';
   }
 
-  async function toggleCandidateStatus(materialId: string, currentStatus: boolean) {
+  async function toggleCandidateStatus(
+    materialId: string,
+    currentStatus: boolean
+  ) {
     try {
       const response = await fetch(
         `/api/projects/${selectedProject.id}/materials`,
@@ -618,6 +641,26 @@
   $effect(() => {
     // Mark as initialized after first render
     isInitialized = true;
+  });
+
+  // Auto-scroll subtitle textarea to bottom when content updates
+  $effect(() => {
+    if (subtitleTextarea && staticSubtitleContent) {
+      subtitleTextarea.scrollTop = subtitleTextarea.scrollHeight;
+    }
+  });
+
+  // Auto-scroll logs containers to bottom when logs update
+  $effect(() => {
+    if (logsContainer && generationLogs) {
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+  });
+
+  $effect(() => {
+    if (logsFullScreenContainer && generationLogs) {
+      logsFullScreenContainer.scrollTop = logsFullScreenContainer.scrollHeight;
+    }
   });
 
   async function handlePromptInput() {
@@ -1028,6 +1071,48 @@
         ></textarea>
       </div>
       <div class="flex items-center justify-between my-2">
+        <h3 class="text-lg font-semibold">Body Text</h3>
+        <button
+          onclick={() => (isBodytextFullScreen = !isBodytextFullScreen)}
+          class="text-blue-500 hover:text-blue-700 text-sm"
+        >
+          {isBodytextFullScreen ? 'Exit Full Screen' : 'Full Screen'}
+        </button>
+      </div>
+      <textarea
+        bind:value={bodytextContent}
+        placeholder="Enter body text..."
+        class="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+        rows="7"
+      ></textarea>
+      <!-- Bodytext Length -->
+      <div>
+        <label
+          for="bodytext-length"
+          class="block text-sm font-medium text-gray-700 mb-1"
+        >
+          Body Text: {bodytextLengthValue === 0
+            ? 'start clip'
+            : bodytextLengthValue === 1
+              ? 'first clip'
+              : 'full'}
+        </label>
+        <input
+          id="bodytext-length-value"
+          type="range"
+          min="0"
+          max="2"
+          step="1"
+          bind:value={bodytextLengthValue}
+          class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+        />
+        <div class="flex justify-between text-xs text-gray-500 mt-1">
+          <span>start</span>
+          <span>first</span>
+          <span>full</span>
+        </div>
+      </div>
+      <div class="flex items-center justify-between my-2">
         <h3 class="text-lg font-semibold">Subtitle</h3>
         <div class="flex gap-2">
           <button
@@ -1055,7 +1140,9 @@
       <textarea
         id="staticSubtitleContent_editor"
         bind:value={staticSubtitleContent}
+        bind:this={subtitleTextarea}
         placeholder="Enter static subtitle text (optional)..."
+        rows="7"
         class="h-48 w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
       ></textarea>
       <p class="mt-2 text-sm text-gray-500">
@@ -1524,9 +1611,10 @@
         {#each sortedProjectMaterials as material (material.id)}
           {@const url = `/api/media/file/${material.relativePath.split('/')[0] === 'public' ? 'public' : 'user'}/${material.relativePath.split('/').slice(2).join('/')}`}
           <div
-            class="group relative w-full overflow-hidden rounded-lg border-2 border-gray-200 {material.isCandidate ? 'bg-blue-50' : 'bg-white'} transition-all hover:shadow-md"
+            class="group relative w-full overflow-hidden rounded-lg border-2 border-gray-200 {material.isCandidate
+              ? 'bg-blue-50'
+              : 'bg-white'} transition-all hover:shadow-md"
           >
-      
             <button
               onclick={() => removeMaterial(material.id)}
               class="absolute top-2 right-2 z-10 rounded-full bg-red-500 p-1 text-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
@@ -1548,16 +1636,30 @@
             </button>
             {#if material.fileType.startsWith('image')}
               <div class="relative">
-                <div class="aspect-square overflow-hidden bg-gray-100">
+                <div
+                  class="aspect-square overflow-hidden bg-gray-100 cursor-pointer"
+                  onclick={() =>
+                    toggleCandidateStatus(material.id, material.isCandidate)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleCandidateStatus(material.id, material.isCandidate);
+                    }
+                  }}
+                  tabindex="0"
+                  role="button"
+                  aria-label={`Toggle candidate status for ${material.fileName}`}
+                >
                   <img
                     src={url}
                     alt={material.fileName}
-                    class="h-full w-full object-cover transition-transform group-hover:scale-105 cursor-pointer"
+                    class="h-full w-full object-cover transition-transform group-hover:scale-105"
                     loading="lazy"
-                    onclick={() => toggleCandidateStatus(material.id, material.isCandidate)}
                   />
                 </div>
-                <div class="absolute inset-0 flex items-center justify-center bg-transparent bg-opacity-0 hover:bg-opacity-20 transition-opacity pointer-events-none">
+                <div
+                  class="absolute inset-0 flex items-center justify-center bg-transparent bg-opacity-0 hover:bg-opacity-20 transition-opacity pointer-events-none"
+                >
                   <button
                     type="button"
                     class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 transition-opacity pointer-events-auto focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -1583,10 +1685,13 @@
                     preload="metadata"
                     onloadedmetadata={(e) =>
                       ((e.target as HTMLVideoElement).currentTime = 0)}
-                    onclick={() => toggleCandidateStatus(material.id, material.isCandidate)}
+                    onclick={() =>
+                      toggleCandidateStatus(material.id, material.isCandidate)}
                   ></video>
                 </div>
-                <div class="absolute inset-0 flex items-center justify-center bg-transparent bg-opacity-0 hover:bg-opacity-20 transition-opacity pointer-events-none">
+                <div
+                  class="absolute inset-0 flex items-center justify-center bg-transparent bg-opacity-0 hover:bg-opacity-20 transition-opacity pointer-events-none"
+                >
                   <button
                     type="button"
                     class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 transition-opacity pointer-events-auto focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -1733,6 +1838,30 @@
     </div>
   {/if}
 
+  <!-- Full Screen Bodytext Editor Modal -->
+  {#if isBodytextFullScreen}
+    <div class="fixed inset-0 z-50 bg-white">
+      <div class="flex flex-col h-full">
+        <div
+          class="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50"
+        >
+          <h3 class="text-lg font-semibold">Body Text Editor (Full Screen)</h3>
+          <button
+            onclick={() => (isBodytextFullScreen = false)}
+            class="text-red-500 hover:text-red-700 text-xl font-bold">×</button
+          >
+        </div>
+        <div class="flex-1 p-4 overflow-auto">
+          <textarea
+            bind:value={bodytextContent}
+            placeholder="Enter body text..."
+            class="w-full h-full resize-none border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 text-base"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Full Screen Logs Modal -->
   {#if isLogsFullScreen}
     <div class="fixed inset-0 z-50 bg-white">
@@ -1746,7 +1875,7 @@
             class="text-red-500 hover:text-red-700 text-xl font-bold">×</button
           >
         </div>
-        <div class="flex-1 p-4 overflow-auto bg-gray-900">
+        <div bind:this={logsFullScreenContainer} class="flex-1 p-4 overflow-auto bg-gray-900">
           <pre class="text-sm text-green-400 font-mono">{generationLogs}</pre>
         </div>
       </div>
@@ -1767,7 +1896,7 @@
           {isLogsFullScreen ? 'Exit Full Screen' : 'Full Screen'}
         </button>
       </div>
-      <div class="h-48 overflow-auto rounded-lg bg-gray-900 p-4">
+      <div bind:this={logsContainer} class="h-48 overflow-auto rounded-lg bg-gray-900 p-4">
         <pre class="text-sm text-green-400 font-mono">{generationLogs}</pre>
       </div>
     </div>

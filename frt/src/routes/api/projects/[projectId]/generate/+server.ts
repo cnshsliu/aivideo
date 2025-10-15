@@ -101,7 +101,10 @@ export async function DELETE({ params, cookies }) {
     // Check if there's an active process for this project
     const activeProcess = activeProcesses.get(projectId);
     if (!activeProcess) {
-      console.log('ℹ️ [VIDEO GENERATE API] No active process found for project:', projectId);
+      console.log(
+        'ℹ️ [VIDEO GENERATE API] No active process found for project:',
+        projectId
+      );
       return json({ success: true, message: 'No active process to cancel' });
     }
 
@@ -110,24 +113,42 @@ export async function DELETE({ params, cookies }) {
     // Kill the child process
     try {
       child.kill('SIGTERM');
-      console.log('✅ [VIDEO GENERATE API] Sent SIGTERM to child process for project:', projectId);
+      console.log(
+        '✅ [VIDEO GENERATE API] Sent SIGTERM to child process for project:',
+        projectId
+      );
     } catch (killErr) {
-      console.error('❌ [VIDEO GENERATE API] Error killing child process:', killErr);
+      console.error(
+        '❌ [VIDEO GENERATE API] Error killing child process:',
+        killErr
+      );
       // Try force kill
       try {
         child.kill('SIGKILL');
-        console.log('✅ [VIDEO GENERATE API] Sent SIGKILL to child process for project:', projectId);
+        console.log(
+          '✅ [VIDEO GENERATE API] Sent SIGKILL to child process for project:',
+          projectId
+        );
       } catch (forceKillErr) {
-        console.error('❌ [VIDEO GENERATE API] Error force killing child process:', forceKillErr);
+        console.error(
+          '❌ [VIDEO GENERATE API] Error force killing child process:',
+          forceKillErr
+        );
       }
     }
 
     // Close the log stream
     try {
       logStream.end();
-      console.log('✅ [VIDEO GENERATE API] Closed log stream for project:', projectId);
+      console.log(
+        '✅ [VIDEO GENERATE API] Closed log stream for project:',
+        projectId
+      );
     } catch (streamErr) {
-      console.error('❌ [VIDEO GENERATE API] Error closing log stream:', streamErr);
+      console.error(
+        '❌ [VIDEO GENERATE API] Error closing log stream:',
+        streamErr
+      );
     }
 
     // Remove from active processes
@@ -142,11 +163,17 @@ export async function DELETE({ params, cookies }) {
       })
       .where(eq(project.id, projectId));
 
-    console.log('✅ [VIDEO GENERATE API] Video generation cancelled for project:', projectId);
+    console.log(
+      '✅ [VIDEO GENERATE API] Video generation cancelled for project:',
+      projectId
+    );
 
     return json({ success: true, message: 'Video generation cancelled' });
   } catch (err) {
-    console.error('❌ [VIDEO GENERATE API] Video generation cancellation error:', err);
+    console.error(
+      '❌ [VIDEO GENERATE API] Video generation cancellation error:',
+      err
+    );
     return error(500, { message: 'Internal server error' });
   }
 }
@@ -195,11 +222,22 @@ async function prepareAndRunGeneration(
       );
     }
 
+    if (theProject.bodytext && theProject.bodytext!.trim()) {
+      const bodytextPath = path.join(projectPath, 'subtitle', 'bodytext.txt');
+      await fs.writeFile(bodytextPath, theProject.bodytext!.trim());
+      console.log('📝 [VIDEO GENERATE] Body text file created:', bodytextPath);
+    }
+
     // 2.3 Copy project materials files to PROJ_DIR/media
     const materials = await db
       .select()
       .from(material)
-      .where(and(eq(material.projectId, theProject.id), eq(material.isCandidate, true)));
+      .where(
+        and(
+          eq(material.projectId, theProject.id),
+          eq(material.isCandidate, true)
+        )
+      );
 
     const mediaDir = path.join(projectPath, 'media');
     await fs.mkdir(mediaDir, { recursive: true });
@@ -342,6 +380,12 @@ function composeCommand(project: Project, projectPath: string): string {
     command += ` --bgm-volume ${project.bgmVolume}`;
   }
 
+  if (project.bodytext && project.bodytext.trim()) {
+    const bodytextPath = path.join(projectPath, 'subtitle', 'bodytext.txt');
+    command += ` --bodytext "${bodytextPath}"`;
+    command += ` --bodytextlength ${project.bodytextLength}`;
+  }
+
   if (project.genSubtitle) {
     command += ` --gen-subtitle`;
   } else {
@@ -366,9 +410,9 @@ function composeCommand(project: Project, projectPath: string): string {
   }
 
   // Add open flag
-  if (project.openAfterGeneration) {
-    command += ' --open';
-  }
+  // if (project.openAfterGeneration) {
+  //   command += ' --open';
+  // }
 
   // Add timestamp to title
   if (project.addTimestampToTitle) {

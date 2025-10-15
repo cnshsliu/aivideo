@@ -118,6 +118,7 @@ export async function POST({ request, cookies }) {
         userId,
         prompt: null,
         staticSubtitle: null,
+        bodytext: '',
         keepTitle: keepTitle !== undefined ? keepTitle : true,
         addTimestampToTitle:
           addTimestampToTitle !== undefined ? addTimestampToTitle : false,

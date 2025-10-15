@@ -253,7 +253,7 @@ def split_by_punctuation_marks(text):
         return []
 
     # Chinese punctuation marks to split by (excluding question marks and exclamation marks)
-    punctuation_marks = '，。、；：""\'\'()（）【】《》<>——・•·…—–'
+    punctuation_marks = "，。、；：\"\"''()（）【】《》<>——・•·…—–"
 
     parts = [text]
     for mark in punctuation_marks:
@@ -394,6 +394,8 @@ def split_long_subtitle_text(text, max_length=14):
     lines = []
     for i in range(0, len(text), max_length):
         lines.append(text[i : i + max_length])
+
+    print(lines)
     return lines
 
 
@@ -428,9 +430,7 @@ def estimate_speaking_time(text):
 
     # Count different types of characters
     chinese_chars = sum(1 for char in text if contains_chinese(char))
-    english_words = len(
-        [word for word in text.split() if not contains_chinese(word)]
-    )
+    english_words = len([word for word in text.split() if not contains_chinese(word)])
     digits = sum(1 for char in text if char.isdigit())
     punctuation = sum(1 for char in text if char in '，。！？；：""（）【】《》')
 
@@ -628,3 +628,4 @@ def find_chinese_font_in_system():
                     continue
 
     return None
+

@@ -220,4 +220,15 @@ def parse_args():
         default=0.3,
         help="Background music volume level (0.0-1.0, default: 0.3)",
     )
+    parser.add_argument(
+        "--bodytext",
+        help="bodytext file path",
+    )
+    parser.add_argument(
+        "--bodytextlength",
+        type=int,
+        choices=[0,1,2],
+        default=0,
+        help="Body text duration (0,1,2, default: 0)",
+    )
     return parser.parse_args()

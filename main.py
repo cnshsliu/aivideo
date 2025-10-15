@@ -3410,6 +3410,7 @@ Generate clean, natural subtitles using only the allowed punctuation marks.""",
                     (1280, 720),  # HD portrait
                     (960, 540),  # qHD portrait
                     (854, 480),  # FWVGA portrait
+                    (1080, 1920),  # Full HD portrait (width x height)
                 ]
 
                 is_standard_ratio = (height, width) in standard_portrait_sizes

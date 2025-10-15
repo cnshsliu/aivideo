@@ -103,6 +103,8 @@ export const project = pgTable('project', {
   staticSubtitle: text('static_subtitle'),
   desc: text('desc'),
   brief: text('brief'),
+  bodytext: text('bodytext').default(''),
+  bodytextLength: integer('bodytext_length').default(0),
   keepTitle: boolean('keep_title').default(true),
   openAfterGeneration: boolean('open_after_generation').default(true),
   addTimestampToTitle: boolean('add_timestamp_to_title').default(false),
