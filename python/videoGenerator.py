@@ -3,6 +3,7 @@ import random
 import time
 import subprocess
 from typing import TypeVar
+from pathlib import Path
 import numpy as np
 from moviepy import (
     VideoFileClip,
@@ -1167,6 +1168,175 @@ class VideoGenerator:
         transition = random.choice(transitions)
         return transition(clip1, clip2)
 
+    def _process_bodytext(self):
+        """Process bodytext file and create text clips with background"""
+        try:
+            bodytext_file = getattr(self.args, "bodytext", None)
+            if not bodytext_file:
+                self.logger.warning("No bodytext file specified")
+                return []
+
+            # Read bodytext file
+            bodytext_path = Path(bodytext_file)
+            if not bodytext_path.exists():
+                self.logger.error(f"Bodytext file does not exist: {bodytext_file}")
+                return []
+
+            with open(bodytext_path, 'r', encoding='utf-8') as f:
+                bodyText = f.read().strip()
+
+            if not bodyText:
+                self.logger.warning("Bodytext file is empty")
+                return []
+
+            self.logger.info(f"Read bodytext from {bodytext_file}: {len(bodyText)} characters")
+
+            # Get bodyTextLength (0, 1, 2, default 0)
+            bodyTextLength = getattr(self.args, "bodytextlength", 0)
+            self.logger.info(f"Bodytext length mode: {bodyTextLength}")
+
+            # Split bodyText into lines (no wrapping)
+            bodyText_lines = bodyText.split('\n')
+            self.logger.info(f"Bodytext has {len(bodyText_lines)} lines")
+
+            # Create text clips for each line
+            text_clips = []
+
+            # Standard mobile portrait dimensions
+            video_width = 1080
+            video_height = 1920
+
+            # Font settings for body text (smaller than subtitles)
+            font_size = 36
+            font_color = "white"
+            bg_color = (0, 0, 0)  # Black background
+            bg_opacity = 0.7
+
+            # Check if we need Chinese font support
+            needs_chinese_font = any(contains_chinese(line) for line in bodyText_lines)
+            font_name = get_chinese_compatible_font("Arial") if needs_chinese_font else "Arial"
+
+            # Calculate line height and positioning
+            line_height = font_size + 10  # Spacing between lines
+            total_text_height = len(bodyText_lines) * line_height
+
+            # Start position for text block (centered vertically)
+            start_y = (video_height - total_text_height) // 2
+
+            # First pass: create all text clips to calculate total dimensions
+            max_text_width = 0
+            valid_lines = 0
+
+            for line_text in bodyText_lines:
+                if not line_text.strip():  # Skip empty lines
+                    continue
+
+                # Create text clip
+                text_clip = TextClip(
+                    font_name,
+                    line_text,
+                    font_size=font_size,
+                    color=font_color,
+                    stroke_color="black",
+                    stroke_width=1,
+                    size=(int(video_width * 0.8), None),  # 80% width, auto height
+                    method="caption",
+                    text_align="center",
+                    transparent=True,
+                )
+
+                max_text_width = max(max_text_width, text_clip.w)
+                valid_lines += 1
+
+            # Create single background clip for all text lines
+            if valid_lines > 0:
+                bg_width = int(max_text_width + 40)
+                bg_height = int(total_text_height + 20)  # Cover all lines plus padding
+                bg_x = (video_width - bg_width) // 2  # Center horizontally
+                bg_y = start_y - 10  # Offset above first text line
+
+                bg_clip = ColorClip(
+                    size=(bg_width, bg_height),
+                    color=bg_color
+                ).with_opacity(bg_opacity).with_position((bg_x, bg_y))
+
+            # Second pass: create and position text clips
+            for i, line_text in enumerate(bodyText_lines):
+                if not line_text.strip():  # Skip empty lines
+                    continue
+
+                # Create text clip
+                text_clip = TextClip(
+                    font_name,
+                    line_text,
+                    font_size=font_size,
+                    color=font_color,
+                    stroke_color="black",
+                    stroke_width=1,
+                    size=(int(video_width * 0.8), None),  # 80% width, auto height
+                    method="caption",
+                    text_align="center",
+                    transparent=True,
+                )
+
+                # Position the text line
+                y_position = start_y + i * line_height
+                text_clip = text_clip.with_position(("center", y_position))
+
+                text_clips.append(text_clip)
+
+            # Determine timing based on bodyTextLength
+            # We need to scan media files first to get clip information
+            self.scan_media_files()
+            main_clips = self.process_media_clips()
+
+            bodyTextStartAt = 0.0
+            bodyTextDuration = 0.0
+
+            if bodyTextLength == 0:
+                # Start at 0, duration same as first clip
+                if main_clips:
+                    bodyTextDuration = main_clips[0].duration
+                else:
+                    bodyTextDuration = 5.0  # Default fallback
+            elif bodyTextLength == 1:
+                # Start after first clip, duration same as second clip
+                if len(main_clips) >= 2:
+                    first_clip_duration = main_clips[0].duration
+                    bodyTextStartAt = first_clip_duration
+                    bodyTextDuration = main_clips[1].duration
+                else:
+                    bodyTextStartAt = 0.0
+                    bodyTextDuration = 5.0  # Default fallback
+            elif bodyTextLength == 2:
+                # Start at 0, duration is full video length minus ending clip
+                total_duration = sum(clip.duration for clip in main_clips)
+                if self.closing_file:
+                    # Estimate closing clip duration (we'll use 3 seconds as default)
+                    closing_duration = 3.0
+                    bodyTextDuration = total_duration - closing_duration
+                else:
+                    bodyTextDuration = total_duration
+
+            self.logger.info(f"Bodytext timing: start={bodyTextStartAt:.2f}s, duration={bodyTextDuration:.2f}s")
+
+            # Apply timing to all clips
+            timed_text_clips = []
+
+            for text_clip in text_clips:
+                timed_text_clip = text_clip.with_start(bodyTextStartAt).with_duration(bodyTextDuration)
+                timed_text_clips.append(timed_text_clip)
+
+            # Apply timing to single background clip
+            timed_bg_clip = bg_clip.with_start(bodyTextStartAt).with_duration(bodyTextDuration)
+
+            # Return background clip first (so text appears on top), then all text clips
+            return [timed_bg_clip] + timed_text_clips
+
+        except Exception as e:
+            self.logger.error(f"Failed to process bodytext: {e}")
+            return []
+
     def _check_and_regenerate_aspect_ratio(self, video_file):
         """Check if video is 16:9 aspect ratio and regenerate if not"""
         import subprocess
@@ -1387,6 +1557,11 @@ class VideoGenerator:
             # Generate subtitles using the same logic as normal generation
             self._generate_static_subtitles_only()
             return
+
+        # Handle bodytext logic if --bodytext flag is provided
+        body_text_clips = []
+        if getattr(self.args, "bodytext", None):
+            body_text_clips = self._process_bodytext()
 
         # Step 1: Generate subtitles and audio
         self.logger.info("Step 1: Generating subtitles and audio...")
@@ -1745,10 +1920,20 @@ class VideoGenerator:
 
         self.logger.info(f"Final video duration: {final_clip.duration:.2f}s")
 
-        # Step 7.5: Add background music if specified
+        # Step 7.5: Add body text clips if available
+        if body_text_clips:
+            self.logger.info("Step 7.5: Adding body text clips...")
+            print("📝 Step 7.5: Adding body text clips...")
+            final_clip = CompositeVideoClip([final_clip] + body_text_clips)
+            self.logger.info(
+                f"Final video with body text duration: {final_clip.duration:.2f}s"
+            )
+            print(f"✅ Body text clips added: {len(body_text_clips)} clips")
+
+        # Step 7.6: Add background music if specified
         if getattr(self.args, "mp3", None):
-            self.logger.info("Step 7.5: Adding background music...")
-            print("🎵 Step 7.5: Adding background music...")
+            self.logger.info("Step 7.6: Adding background music...")
+            print("🎵 Step 7.6: Adding background music...")
             self.background_music_processor._add_background_music(final_clip)
             self.logger.info(
                 f"Final video duration after adding background music: {final_clip.duration:.2f}s"
