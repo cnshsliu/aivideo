@@ -7,6 +7,7 @@
     createdAt: string;
     updatedAt: string;
     prompt?: string;
+    commonPrompt?: string;
     staticSubtitle?: string;
     desc?: string;
     brief?: string;
@@ -160,6 +161,7 @@
       loadProjectMaterials();
       staticSubtitleContent = selectedProject.staticSubtitle || '';
       promptContent = selectedProject.prompt || '';
+      commonPromptContent = selectedProject.commonPrompt || '';
       descContent = selectedProject.desc || '';
       briefContent = selectedProject.brief || '';
       bodytextContent = selectedProject.bodytext || '';
@@ -194,6 +196,7 @@
   let editedTitle = $state('');
   let staticSubtitleContent = $state(selectedProject.staticSubtitle || '');
   let promptContent = $state(selectedProject.prompt || '');
+  let commonPromptContent = $state(selectedProject.commonPrompt || '');
   let descContent = $state(selectedProject.desc || '');
   let briefContent = $state(selectedProject.brief || '');
   let bodytextContent = $state(selectedProject.bodytext || '');
@@ -383,6 +386,7 @@
       if (response.ok) {
         const project = await response.json();
         promptContent = project.prompt || '';
+        commonPromptContent = project.commonPrompt || '';
         staticSubtitleContent = project.staticSubtitle || '';
         descContent = project.desc || '';
         briefContent = project.brief || '';
@@ -415,6 +419,7 @@
           video_title: videoTitle,
           name: selectedProject.name,
           prompt: promptContent,
+          commonPrompt: commonPromptContent,
           staticSubtitle: staticSubtitleContent,
           desc: descContent,
           brief: briefContent,
@@ -448,6 +453,7 @@
         onUpdateProject({
           ...selectedProject,
           prompt: promptContent,
+          commonPrompt: commonPromptContent,
           staticSubtitle: staticSubtitleContent,
           desc: descContent,
           brief: briefContent,
@@ -660,6 +666,13 @@
   $effect(() => {
     if (logsFullScreenContainer && generationLogs) {
       logsFullScreenContainer.scrollTop = logsFullScreenContainer.scrollHeight;
+    }
+  });
+
+  // Set default value for common prompt if empty
+  $effect(() => {
+    if (!commonPromptContent || !commonPromptContent.trim()) {
+      commonPromptContent = `文字自然流畅，适合口播`;
     }
   });
 
@@ -1008,21 +1021,21 @@
       <p class="mt-2 text-sm text-gray-500">
         This prompt will be used to generate subtitles for your video.
       </p>
-      <!-- Generate Subtitles -->
-      <!--div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-gray-700">Generate Subtitles</span
-        >
-        <button
-          onclick={() => (genSubtitle = !genSubtitle)}
-          class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${genSubtitle ? "bg-blue-600" : "bg-gray-200"}`}
-          aria-pressed={genSubtitle}
-          aria-label="Toggle generate subtitles"
-        >
-          <span
-            class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${genSubtitle ? "translate-x-6" : "translate-x-1"}`}
-          ></span>
-        </button>
-      </div-->
+
+      <!-- Common Prompt -->
+      <div class="mt-4">
+        <h3 class="text-lg font-semibold mb-4">Common Prompt</h3>
+        <textarea
+          id="common-prompt-content"
+          bind:value={commonPromptContent}
+          placeholder="Enter your common prompt..."
+          oninput={handlePromptInput}
+          class="h-32 w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+        ></textarea>
+        <p class="mt-2 text-sm text-gray-500">
+          This common prompt will be shared across projects.
+        </p>
+      </div>
 
       <!-- Generate Voice -->
       <div class="flex items-center justify-between my-2">
@@ -1875,7 +1888,10 @@
             class="text-red-500 hover:text-red-700 text-xl font-bold">×</button
           >
         </div>
-        <div bind:this={logsFullScreenContainer} class="flex-1 p-4 overflow-auto bg-gray-900">
+        <div
+          bind:this={logsFullScreenContainer}
+          class="flex-1 p-4 overflow-auto bg-gray-900"
+        >
           <pre class="text-sm text-green-400 font-mono">{generationLogs}</pre>
         </div>
       </div>
@@ -1896,7 +1912,10 @@
           {isLogsFullScreen ? 'Exit Full Screen' : 'Full Screen'}
         </button>
       </div>
-      <div bind:this={logsContainer} class="h-48 overflow-auto rounded-lg bg-gray-900 p-4">
+      <div
+        bind:this={logsContainer}
+        class="h-48 overflow-auto rounded-lg bg-gray-900 p-4"
+      >
         <pre class="text-sm text-green-400 font-mono">{generationLogs}</pre>
       </div>
     </div>

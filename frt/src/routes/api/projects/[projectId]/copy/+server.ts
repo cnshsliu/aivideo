@@ -84,6 +84,10 @@ export async function POST({ params, cookies, request }) {
           userId: session.userId,
           prompt: dbProject[0].prompt,
           staticSubtitle: dbProject[0].staticSubtitle,
+          desc: dbProject[0].desc,
+          brief: dbProject[0].brief,
+          bodytext: dbProject[0].bodytext,
+          bodytextLength: dbProject[0].bodytextLength,
           keepTitle: dbProject[0].keepTitle,
           openAfterGeneration: dbProject[0].openAfterGeneration,
           addTimestampToTitle: dbProject[0].addTimestampToTitle,
@@ -103,6 +107,7 @@ export async function POST({ params, cookies, request }) {
           bgmFadeIn: dbProject[0].bgmFadeIn,
           bgmFadeOut: dbProject[0].bgmFadeOut,
           bgmVolume: dbProject[0].bgmVolume,
+          commonPrompt: dbProject[0].commonPrompt,
           createdAt: new Date(),
           updatedAt: new Date()
         })

@@ -56,7 +56,13 @@ export async function POST({ params, request, cookies }) {
       const promptDir = path.join(projectPath, 'prompt');
       await fs.mkdir(promptDir, { recursive: true });
       const promptPath = path.join(promptDir, 'prompt.txt');
-      await fs.writeFile(promptPath, selectedProject.prompt.trim());
+      await fs.writeFile(
+        promptPath,
+        selectedProject.prompt.trim() +
+          (selectedProject.commonPrompt
+            ? '\n\nYOU MUST:\n' + selectedProject.commonPrompt.trim()
+            : '')
+      );
       console.log('📝 [STATIC SUBTITLES API] Prompt file created:', promptPath);
     }
 
@@ -90,8 +96,12 @@ export async function POST({ params, request, cookies }) {
           jsonString = jsonString.replace(/'/g, '"');
           const subtitlesArray = JSON.parse(jsonString);
           processedResult = subtitlesArray.join('\n');
-        } catch (parseError: any) {
-          console.error(parseError.message);
+        } catch (parseError: unknown) {
+          const errorMessage =
+            parseError instanceof Error
+              ? parseError.message
+              : String(parseError);
+          console.error(errorMessage);
           console.error(
             '❌ [STATIC SUBTITLES API] Failed to parse subtitles array:',
             parseError

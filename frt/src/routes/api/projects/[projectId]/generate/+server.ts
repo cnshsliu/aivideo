@@ -203,8 +203,14 @@ async function prepareAndRunGeneration(
     if (theProject.prompt && theProject.prompt!.trim()) {
       const promptDir = path.join(projectPath, 'prompt');
       await fs.mkdir(promptDir, { recursive: true });
-      const promptPath = path.join(promptDir, 'prompt.md');
-      await fs.writeFile(promptPath, theProject.prompt!.trim());
+      const promptPath = path.join(promptDir, 'prompt.txt');
+      await fs.writeFile(
+        promptPath,
+        theProject.prompt.trim() +
+          (theProject.commonPrompt
+            ? '\n\nYOU MUST:\n' + theProject.commonPrompt.trim()
+            : '')
+      );
       console.log('📝 [VIDEO GENERATE] Prompt file created:', promptPath);
     }
 
@@ -384,6 +390,7 @@ function composeCommand(project: Project, projectPath: string): string {
     const bodytextPath = path.join(projectPath, 'subtitle', 'bodytext.txt');
     command += ` --bodytext "${bodytextPath}"`;
     command += ` --bodytextlength ${project.bodytextLength}`;
+    command += ` --bodytext_animation wipe_down`;
   }
 
   if (project.genSubtitle) {

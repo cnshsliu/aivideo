@@ -1306,34 +1306,66 @@ class VideoGenerator:
             # We need to scan media files first to get clip information
             self.scan_media_files()
             main_clips = self.process_media_clips()
+            total_main_duration = sum(clip.duration for clip in main_clips)
 
             bodyTextStartAt = 0.0
-            bodyTextDuration = 0.0
+            bodyTextDuration = total_main_duration
+
+            # Get start clip duration if available
+            start_clip_duration = 0.0
+            if self.start_file:
+                try:
+                    # Try to get duration of start file
+                    if self.start_file.suffix.lower() in {
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".gif",
+                        ".bmp",
+                        ".tiff",
+                    }:
+                        start_clip_duration = 3.0  # Default duration for images
+                    else:
+                        # For video files, try to get actual duration
+                        temp_clip = self._safe_load_video_clip(self.start_file)
+                        if temp_clip:
+                            start_clip_duration = temp_clip.duration
+                            temp_clip.close()
+                        else:
+                            start_clip_duration = 3.0  # Fallback
+                except Exception as e:
+                    self.logger.warning(f"Could not get start clip duration: {e}")
+                    start_clip_duration = 3.0  # Fallback
 
             if bodyTextLength == 0:
-                # Start at 0, duration same as first clip
-                if main_clips:
+                # Start at 0, duration same as first clip (or start clip if available)
+                if self.start_file and start_clip_duration > 0:
+                    bodyTextDuration = start_clip_duration
+                elif main_clips:
                     bodyTextDuration = main_clips[0].duration
                 else:
                     bodyTextDuration = 5.0  # Default fallback
             elif bodyTextLength == 1:
-                # Start after first clip, duration same as second clip
-                if len(main_clips) >= 2:
-                    first_clip_duration = main_clips[0].duration
-                    bodyTextStartAt = first_clip_duration
-                    bodyTextDuration = main_clips[1].duration
+                # Start after start clip (if available), duration is remaining time
+                if self.start_file and start_clip_duration > 0:
+                    bodyTextStartAt = start_clip_duration
+                    bodyTextDuration = total_main_duration
                 else:
-                    bodyTextStartAt = 0.0
-                    bodyTextDuration = 5.0  # Default fallback
-            elif bodyTextLength == 2:
-                # Start at 0, duration is full video length minus ending clip
-                total_duration = sum(clip.duration for clip in main_clips)
-                if self.closing_file:
-                    # Estimate closing clip duration (we'll use 3 seconds as default)
-                    closing_duration = 3.0
-                    bodyTextDuration = total_duration - closing_duration
+                    # No start clip, so start at beginning but treat as "after first clip"
+                    if main_clips and len(main_clips) > 1:
+                        first_clip_duration = main_clips[0].duration
+                        bodyTextStartAt = first_clip_duration
+                        bodyTextDuration = sum(clip.duration for clip in main_clips[1:])
+                    else:
+                        # Fallback: start at 0, full duration
+                        bodyTextStartAt = 0.0
+                        bodyTextDuration = total_main_duration
+            else:
+                bodyTextStartAt = 0
+                if self.start_file and start_clip_duration > 0:
+                    bodyTextDuration = start_clip_duration + total_main_duration
                 else:
-                    bodyTextDuration = total_duration
+                    bodyTextDuration = total_main_duration
 
             self.logger.info(
                 f"Bodytext timing: start={bodyTextStartAt:.2f}s, duration={bodyTextDuration:.2f}s"
@@ -1357,10 +1389,12 @@ class VideoGenerator:
                     line_end_time = bodyTextStartAt + bodyTextDuration
 
                     # Apply fade in effect with proper timing
-                    timed_text_clip = text_clip.with_start(line_start_time).with_duration(
-                        line_end_time - line_start_time
+                    timed_text_clip = text_clip.with_start(
+                        line_start_time
+                    ).with_duration(line_end_time - line_start_time)
+                    timed_text_clip = timed_text_clip.with_effects(
+                        [FadeIn(fade_duration)]
                     )
-                    timed_text_clip = timed_text_clip.with_effects([FadeIn(fade_duration)])
 
                     timed_text_clips.append(timed_text_clip)
 
@@ -1373,9 +1407,9 @@ class VideoGenerator:
                 timed_text_clips = []
 
                 for text_clip in text_clips:
-                    timed_text_clip = text_clip.with_start(bodyTextStartAt).with_duration(
-                        bodyTextDuration
-                    )
+                    timed_text_clip = text_clip.with_start(
+                        bodyTextStartAt
+                    ).with_duration(bodyTextDuration)
                     timed_text_clips.append(timed_text_clip)
 
                 # Apply timing to single background clip

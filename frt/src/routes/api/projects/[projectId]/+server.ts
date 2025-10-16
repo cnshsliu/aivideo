@@ -76,7 +76,8 @@ export async function PUT({ params, request, cookies }) {
       bgmFile,
       bgmFadeIn,
       bgmFadeOut,
-      bgmVolume
+      bgmVolume,
+      commonPrompt
     } = await request.json();
 
     if (!title || !name) {
@@ -175,6 +176,7 @@ export async function PUT({ params, request, cookies }) {
         bgmFadeIn,
         bgmFadeOut,
         bgmVolume,
+        commonPrompt,
         updatedAt: new Date()
       })
       .where(

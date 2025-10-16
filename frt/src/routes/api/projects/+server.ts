@@ -159,7 +159,7 @@ export async function POST({ request, cookies }) {
       await fs.mkdir(path.join(projectPath, 'subtitle'), { recursive: true });
 
       // Create initial prompt.md file
-      const promptFilePath = path.join(projectPath, 'prompt', 'prompt.md');
+      const promptFilePath = path.join(projectPath, 'prompt', 'prompt.txt');
       await fs.writeFile(
         promptFilePath,
         'Enter your video generation prompt here...\n'

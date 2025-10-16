@@ -34,7 +34,7 @@ class LLMManager:
         logger.info("Generating subtitles using LLM...")
 
         # Read prompt file
-        prompt_file = prompt_folder / "prompt.md"
+        prompt_file = prompt_folder / "prompt.txt"
         if not prompt_file.exists():
             raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
@@ -121,14 +121,12 @@ CRITICAL PUNCTUATION REQUIREMENTS:
 
 IMPORTANT REQUIREMENTS:
 1. **Natural Breaks**: Break content at natural speaking pauses, commas, periods, or logical stops
-2. **Reasonable Length**: Keep subtitles concise (15-45 characters for Chinese, 10-25 words for English)
-3. **Speaking Pace**: Each subtitle should take 2-5 seconds to speak naturally
 4. **Complete Thoughts**: Don't break in the middle of phrases or ideas
+3. **Use Rich Expressions**: Add appropriate modifiers, connecting words, and complete clause structures
 5. **One Line**: Each subtitle should be a single line (no line breaks within subtitles)
 6. **CRITICAL**: Include proper punctuation (commas, periods, question marks, exclamation marks) for natural TTS speech synthesis
 
 FORMAT REQUIREMENTS:
-- **Sentence Length**: Each complete sentence should be 12-16 Chinese characters long (shorter for mobile screens)
 - **Mobile Optimization**: Keep text concise to ensure readability on small mobile screens
 - **Sentence Structure**: Combine related concepts into complete, coherent sentences
 - **Natural Flow**: Use rich expressions with appropriate modifiers and connecting words
@@ -137,14 +135,8 @@ FORMAT REQUIREMENTS:
 - **One Sentence Per Line**: Each line should contain one complete sentence
 - **Width Constraint**: Ensure text fits within mobile screen width (approximately 20-25 characters maximum)
 
-CONTENT ORGANIZATION:
-1. **Combine Related Concepts**: Instead of separating "RTX 5090显卡技术" and "支持大型AI模型运行", combine into "RTX 5090显卡技术支持大型AI模型高效运行"
-2. **Use Rich Expressions**: Add appropriate modifiers, connecting words, and complete clause structures
-3. **Integrate Technical Points**: Organically combine performance, technology, and advantages into coherent narrative
 
 TONE REQUIREMENTS:
-1. **Natural and Fluent**: Avoid mechanical or stiff expressions
-2. **Professional and Authoritative**: Highlight technical advantages with expertise
 3. **Marketing Language**: Use persuasive language to enhance product appeal
 4. **Concise and Powerful**: Keep language clean and impactful for high-end technical product promotion
 
@@ -166,7 +158,7 @@ Examples of good subtitles:
 "集成管理采用软硬件一体化设计"
 "即插即用便捷体验"
 
-Remember: Use ONLY Chinese comma (，), period (。), question mark (？), and exclamation mark (！). NO other punctuation allowed.""",
+""",
                         },
                         {
                             "role": "user",
