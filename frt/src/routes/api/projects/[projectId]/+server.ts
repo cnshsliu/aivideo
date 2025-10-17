@@ -77,7 +77,8 @@ export async function PUT({ params, request, cookies }) {
       bgmFadeIn,
       bgmFadeOut,
       bgmVolume,
-      commonPrompt
+      commonPrompt,
+      news
     } = await request.json();
 
     if (!title || !name) {
@@ -177,6 +178,7 @@ export async function PUT({ params, request, cookies }) {
         bgmFadeOut,
         bgmVolume,
         commonPrompt,
+        news,
         updatedAt: new Date()
       })
       .where(

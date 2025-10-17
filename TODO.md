@@ -1,3 +1,9 @@
-1. Title 多行， 被包在引号里当作一行处理
-2. 第一个视频大小为什么不对？
-3. mp3添加是否可以直接添加，而不是后面再调用ffmpeg？ 缩短时间
+# Video Generator Repeat Mode Implementation
+
+## Task List
+
+- [x] Add repeatmode parameter to config_module.py
+- [x] Implement repeat mode logic in _process_with_original_length method
+- [x] Implement repeat mode logic in _process_with_target_length method
+- [x] Test the implementation
+- [x] Verify results

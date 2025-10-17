@@ -26,6 +26,14 @@ def main():
     """Main function - let's get this show on the road!"""
     try:
         args = parse_args()
+
+        # Check if repeatmode is provided (required parameter)
+        if not hasattr(args, 'repeatmode') or args.repeatmode is None:
+            print("Damn, --repeatmode is required! Please specify --repeatmode single or --repeatmode batch")
+            sys.exit(1)
+        else:
+            print(f"Repeat mode: {args.repeatmode}")
+
         generator = VideoGenerator(args)
         generator.create_final_video()
     except Exception as e:

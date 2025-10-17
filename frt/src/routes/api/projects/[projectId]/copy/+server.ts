@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { verifySession } from '$lib/server/auth';
 import { db } from '$lib/server/db';
-import { project } from '$lib/server/db/schema';
+import { project, material } from '$lib/server/db/schema';
 import fs from 'fs/promises';
 import path from 'path';
 import { nanoid } from 'nanoid';
@@ -88,6 +88,7 @@ export async function POST({ params, cookies, request }) {
           brief: dbProject[0].brief,
           bodytext: dbProject[0].bodytext,
           bodytextLength: dbProject[0].bodytextLength,
+          news: dbProject[0].news,
           keepTitle: dbProject[0].keepTitle,
           openAfterGeneration: dbProject[0].openAfterGeneration,
           addTimestampToTitle: dbProject[0].addTimestampToTitle,
@@ -97,6 +98,7 @@ export async function POST({ params, cookies, request }) {
           sortOrder: dbProject[0].sortOrder,
           keepClipLength: dbProject[0].keepClipLength,
           clipNum: dbProject[0].clipNum,
+          repeatmode: dbProject[0].repeatmode,
           subtitleFont: dbProject[0].subtitleFont,
           subtitleFontSize: dbProject[0].subtitleFontSize,
           subtitlePosition: dbProject[0].subtitlePosition,
@@ -118,6 +120,38 @@ export async function POST({ params, cookies, request }) {
           '❌ [PROJECT COPY API] Failed to create project in database'
         );
         return error(500, { message: 'Failed to create project in database' });
+      }
+
+      // Copy materials from source project to new project
+      try {
+        const sourceMaterials = await db
+          .select()
+          .from(material)
+          .where(eq(material.projectId, projectId));
+
+        if (sourceMaterials.length > 0) {
+          const materialsToInsert = sourceMaterials.map((mat) => ({
+            id: nanoid(),
+            projectId: newProjectId,
+            relativePath: mat.relativePath,
+            fileName: mat.fileName,
+            fileType: mat.fileType,
+            alias: mat.alias,
+            isCandidate: mat.isCandidate,
+            createdAt: new Date()
+          }));
+
+          await db.insert(material).values(materialsToInsert);
+          console.log(
+            `✅ [PROJECT COPY API] Copied ${sourceMaterials.length} materials to new project`
+          );
+        }
+      } catch (materialsErr) {
+        console.warn(
+          '⚠️ [PROJECT COPY API] Failed to copy materials, but project was created:',
+          materialsErr
+        );
+        // Don't fail the entire operation if materials copy fails
       }
 
       console.log('✅ [PROJECT COPY API] Project copied:', newProjectId);

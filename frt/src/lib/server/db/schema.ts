@@ -127,6 +127,8 @@ export const project = pgTable('project', {
   ),
   bgmVolume: decimal('bgm_volume', { precision: 2, scale: 1 }).default('0.5'),
   commonPrompt: text('common_prompt').default('文字自然流畅，适合口播'),
+  news: text('news'),
+  repeatmode: text('repeatmode').default('batch'),
   // Progress fields
   progressStep: text('progress_step', {
     enum: ['preparing', 'running', 'complete', 'error']

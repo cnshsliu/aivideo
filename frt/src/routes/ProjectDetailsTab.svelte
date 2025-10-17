@@ -13,6 +13,7 @@
     brief?: string;
     bodytext?: string;
     bodytextLength?: number;
+    news?: string;
     keepTitle?: boolean;
     addTimestampToTitle?: boolean;
     titleFont?: string;
@@ -31,8 +32,10 @@
     bgmFadeIn?: number;
     bgmFadeOut?: number;
     bgmVolume?: number;
+    repeatmode?: string;
     progressStep?: string;
     progressResult?: string;
+    progressCommand?: string;
   }
 
   interface Material {
@@ -162,6 +165,7 @@
       staticSubtitleContent = selectedProject.staticSubtitle || '';
       promptContent = selectedProject.prompt || '';
       commonPromptContent = selectedProject.commonPrompt || '';
+      newsContent = selectedProject.news || '';
       descContent = selectedProject.desc || '';
       briefContent = selectedProject.brief || '';
       bodytextContent = selectedProject.bodytext || '';
@@ -177,6 +181,7 @@
       sortOrder = selectedProject.sortOrder ?? 'alphnum';
       keepClipLength = selectedProject.keepClipLength ?? false;
       clipNum = selectedProject.clipNum ?? null;
+      repeatmode = selectedProject.repeatmode ?? 'batch';
       // Initialize subtitle settings from selectedProject
       subtitleFont = selectedProject.subtitleFont ?? 'Hiragino Sans GB';
       subtitleFontSize = selectedProject.subtitleFontSize ?? 48;
@@ -197,6 +202,7 @@
   let staticSubtitleContent = $state(selectedProject.staticSubtitle || '');
   let promptContent = $state(selectedProject.prompt || '');
   let commonPromptContent = $state(selectedProject.commonPrompt || '');
+  let newsContent = $state(selectedProject.news || '');
   let descContent = $state(selectedProject.desc || '');
   let briefContent = $state(selectedProject.brief || '');
   let bodytextContent = $state(selectedProject.bodytext || '');
@@ -214,6 +220,7 @@
   let sortOrder = $state(selectedProject.sortOrder ?? 'alphnum');
   let keepClipLength = $state(selectedProject.keepClipLength ?? false);
   let clipNum = $state(selectedProject.clipNum ?? null);
+  let repeatmode = $state(selectedProject.repeatmode ?? 'batch');
   // Subtitle settings state variables
   let subtitleFont = $state(selectedProject.subtitleFont ?? 'Hiragino Sans GB');
   let subtitleFontSize = $state(selectedProject.subtitleFontSize ?? 48);
@@ -230,6 +237,7 @@
   let bgmFiles = $state<string[]>([]);
   let audioPlayer = $state<HTMLAudioElement | null>(null);
   let isPlaying = $state(false);
+  let isNewsFullScreen = $state(false);
   let isFullScreen = $state(false);
   let isSubtitleFullScreen = $state(false);
   let isBodytextFullScreen = $state(false);
@@ -387,6 +395,7 @@
         const project = await response.json();
         promptContent = project.prompt || '';
         commonPromptContent = project.commonPrompt || '';
+        newsContent = project.news || '';
         staticSubtitleContent = project.staticSubtitle || '';
         descContent = project.desc || '';
         briefContent = project.brief || '';
@@ -425,6 +434,7 @@
           brief: briefContent,
           bodytext: bodytextContent,
           bodytextLength: bodytextLengthValue,
+          news: newsContent,
           // Include title settings in save
           keepTitle,
           addTimestampToTitle,
@@ -435,6 +445,7 @@
           sortOrder: sortOrder,
           keepClipLength,
           clipNum: clipNum,
+          repeatmode,
           // Include subtitle settings in save
           subtitleFont,
           subtitleFontSize,
@@ -454,6 +465,7 @@
           ...selectedProject,
           prompt: promptContent,
           commonPrompt: commonPromptContent,
+          news: newsContent,
           staticSubtitle: staticSubtitleContent,
           desc: descContent,
           brief: briefContent,
@@ -620,6 +632,7 @@
     sortOrder = 'alphnum';
     keepClipLength = false;
     clipNum = null;
+    repeatmode = 'batch';
 
     // Subtitle Settings defaults
     subtitleFont = 'Hiragino Sans GB';
@@ -998,10 +1011,27 @@
 
   <!-- Project Content -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Prompt Editor -->
     <div
       class="rounded-2xl border border-white/20 bg-white/60 p-6 shadow-lg backdrop-blur-sm"
     >
+      <!-- News -->
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold">News</h3>
+        <button
+          onclick={() => (isNewsFullScreen = !isNewsFullScreen)}
+          class="text-blue-500 hover:text-blue-700 text-sm"
+        >
+          {isNewsFullScreen ? 'Exit Full Screen' : 'Full Screen'}
+        </button>
+      </div>
+      <textarea
+        bind:value={newsContent}
+        placeholder="Enter news content..."
+        oninput={handlePromptInput}
+        class="h-48 w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+      ></textarea>
+      <p class="mt-2 text-sm text-gray-500">News content for the project.</p>
+      <!-- Prompt Editor -->
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold">Prompt Editor</h3>
         <button
@@ -1456,6 +1486,27 @@
                   class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+
+              <!-- Repeat Mode -->
+              <div>
+                <label
+                  for="repeat-mode"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Repeat Mode
+                </label>
+                <select
+                  id="repeat-mode"
+                  bind:value={repeatmode}
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="single">Single</option>
+                  <option value="batch">Batch</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">
+                  Single: Repeat current clip (AAAABBCCCC), Batch: Cycle through all clips (ABCABCABC)
+                </p>
+              </div>
             </div>
           </div>
         {/if}
@@ -1803,6 +1854,30 @@
     </div>
   </div>
 
+  <!-- Full Screen News Editor Modal -->
+  {#if isNewsFullScreen}
+    <div class="fixed inset-0 z-50 bg-white">
+      <div class="flex flex-col h-full">
+        <div
+          class="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50"
+        >
+          <h3 class="text-lg font-semibold">News Editor (Full Screen)</h3>
+          <button
+            onclick={() => (isNewsFullScreen = false)}
+            class="text-red-500 hover:text-red-700 text-xl font-bold">×</button
+          >
+        </div>
+        <div class="flex-1 p-4 overflow-auto">
+          <textarea
+            bind:value={newsContent}
+            placeholder="Enter news content..."
+            class="w-full h-full resize-none border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 text-base"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Full Screen Prompt Editor Modal -->
   {#if isFullScreen}
     <div class="fixed inset-0 z-50 bg-white">
@@ -1895,6 +1970,14 @@
           <pre class="text-sm text-green-400 font-mono">{generationLogs}</pre>
         </div>
       </div>
+    </div>
+  {/if}
+
+  <!-- Python Command Display -->
+  {#if selectedProject.progressCommand}
+    <div class="mb-4 p-3 bg-gray-100 rounded-lg border">
+      <h4 class="text-sm font-medium text-gray-700 mb-2">Python Video Generator Command:</h4>
+      <pre class="text-xs text-gray-600 font-mono bg-white p-2 rounded border overflow-x-auto">{selectedProject.progressCommand}</pre>
     </div>
   {/if}
 

@@ -549,39 +549,81 @@ class VideoGenerator:
             clip_index = 0
             original_clip_count = len(processed_clips)
 
-            while (
-                remaining_duration > 0.01 and processed_clips
-            ):  # Use small threshold to avoid infinite loops
-                # Repeat clips to fill the remaining duration
-                clip_to_repeat = processed_clips[clip_index % original_clip_count]
+            # Get repeat mode from args (single or batch)
+            repeat_mode = getattr(self.args, "repeatmode", "batch")
+            self.logger.info(f"Using repeat mode: {repeat_mode}")
 
-                if (
-                    clip_to_repeat.duration <= remaining_duration + 0.01
-                ):  # Small tolerance
-                    # Use the entire clip
-                    repeated_clip = clip_to_repeat.copy()
-                    processed_clips.append(repeated_clip)
-                    remaining_duration -= clip_to_repeat.duration
-                    self.logger.debug(
-                        f"Added full clip {clip_index % original_clip_count + 1} ({clip_to_repeat.duration:.2f}s), remaining: {remaining_duration:.2f}s"
-                    )
-                else:
-                    # Use part of the clip
-                    partial_clip = clip_to_repeat.subclipped(0, remaining_duration)
-                    processed_clips.append(partial_clip)
-                    self.logger.debug(
-                        f"Added partial clip ({remaining_duration:.2f}s) from clip {clip_index % original_clip_count + 1}"
-                    )
-                    remaining_duration = 0
+            if repeat_mode == "batch":
+                # Batch mode: cycle through all clips (ABC ABC ABC AB)
+                batch_index = 0
+                while (
+                    remaining_duration > 0.01 and processed_clips
+                ):  # Use small threshold to avoid infinite loops
+                    # Cycle through all clips in order
+                    clip_to_repeat = processed_clips[batch_index % original_clip_count]
 
-                clip_index += 1
+                    if (
+                        clip_to_repeat.duration <= remaining_duration + 0.01
+                    ):  # Small tolerance
+                        # Use the entire clip
+                        repeated_clip = clip_to_repeat.copy()
+                        processed_clips.append(repeated_clip)
+                        remaining_duration -= clip_to_repeat.duration
+                        self.logger.debug(
+                            f"Added full clip {batch_index % original_clip_count + 1} ({clip_to_repeat.duration:.2f}s), remaining: {remaining_duration:.2f}s"
+                        )
+                    else:
+                        # Use part of the clip
+                        partial_clip = clip_to_repeat.subclipped(0, remaining_duration)
+                        processed_clips.append(partial_clip)
+                        self.logger.debug(
+                            f"Added partial clip ({remaining_duration:.2f}s) from clip {batch_index % original_clip_count + 1}"
+                        )
+                        remaining_duration = 0
 
-                # Safety check to prevent infinite loops
-                if clip_index > original_clip_count * 10:  # Max 10 full cycles
-                    self.logger.warning(
-                        "Reached safety limit for clip repetition, stopping extension"
-                    )
-                    break
+                    batch_index += 1
+
+                    # Safety check to prevent infinite loops
+                    if batch_index > original_clip_count * 20:  # Increased limit for batch mode
+                        self.logger.warning(
+                            "Reached safety limit for clip repetition in batch mode, stopping extension"
+                        )
+                        break
+            else:
+                # Single mode: repeat current clip (AAAABBCCCC) - original logic
+                while (
+                    remaining_duration > 0.01 and processed_clips
+                ):  # Use small threshold to avoid infinite loops
+                    # Repeat clips to fill the remaining duration
+                    clip_to_repeat = processed_clips[clip_index % original_clip_count]
+
+                    if (
+                        clip_to_repeat.duration <= remaining_duration + 0.01
+                    ):  # Small tolerance
+                        # Use the entire clip
+                        repeated_clip = clip_to_repeat.copy()
+                        processed_clips.append(repeated_clip)
+                        remaining_duration -= clip_to_repeat.duration
+                        self.logger.debug(
+                            f"Added full clip {clip_index % original_clip_count + 1} ({clip_to_repeat.duration:.2f}s), remaining: {remaining_duration:.2f}s"
+                        )
+                    else:
+                        # Use part of the clip
+                        partial_clip = clip_to_repeat.subclipped(0, remaining_duration)
+                        processed_clips.append(partial_clip)
+                        self.logger.debug(
+                            f"Added partial clip ({remaining_duration:.2f}s) from clip {clip_index % original_clip_count + 1}"
+                        )
+                        remaining_duration = 0
+
+                    clip_index += 1
+
+                    # Safety check to prevent infinite loops
+                    if clip_index > original_clip_count * 10:  # Max 10 full cycles
+                        self.logger.warning(
+                            "Reached safety limit for clip repetition, stopping extension"
+                        )
+                        break
 
         total_duration = sum(c.duration for c in processed_clips)
         self.logger.info(
@@ -679,89 +721,184 @@ class VideoGenerator:
                                 max_repetitions = 20
                             repetition_count = 0
 
-                            while (
-                                remaining_duration > 0.01
-                                and repetition_count < max_repetitions
-                            ):
-                                repetition_count += 1
+                            # Get repeat mode from args (single or batch)
+                            repeat_mode = getattr(self.args, "repeatmode", "single")
+                            self.logger.info(f"Using repeat mode in target length: {repeat_mode}")
+                            
+                            if repeat_mode == "batch":
+                                # Batch mode: cycle through all clips (ABC ABC ABC AB)
+                                # For this case, we need to modify the approach to cycle through all clips
+                                # This is more complex and would require changes at a higher level
+                                # For now, we'll keep the single mode logic for target length processing
+                                # since the batch mode is more relevant for the original length processing
+                                while (
+                                    remaining_duration > 0.01
+                                    and repetition_count < max_repetitions
+                                ):
+                                    repetition_count += 1
 
-                                if (
-                                    full_clip.duration <= remaining_duration + 0.01
-                                ):  # Add small tolerance
-                                    # Use full clip again
-                                    try:
-                                        repeated_clip = full_clip.copy()
-                                        # Verify the copied clip has valid duration
-                                        if (
-                                            hasattr(repeated_clip, "duration")
-                                            and repeated_clip.duration > 0
-                                        ):
-                                            extended_clips.append(repeated_clip)
-                                            remaining_duration -= repeated_clip.duration
-                                            self.logger.debug(
-                                                f"Repeated full clip {clip_path} ({repetition_count}), remaining: {remaining_duration:.2f}s"
-                                            )
-                                        else:
-                                            self.logger.warning(
-                                                f"Invalid copied clip duration for {clip_path}"
-                                            )
-                                            break
-                                    except Exception as copy_error:
-                                        self.logger.error(
-                                            f"Failed to copy clip {clip_path}: {copy_error}"
-                                        )
-                                        break
-                                else:
-                                    # Use partial clip - add safety checks
-                                    try:
-                                        # Ensure we don't exceed the clip duration
-                                        safe_end_time = min(
-                                            remaining_duration, full_clip.duration
-                                        )
-                                        if (
-                                            safe_end_time > 0.01
-                                        ):  # Minimum duration check
-                                            partial_clip = full_clip.subclipped(
-                                                0, safe_end_time
-                                            )
-                                            # Verify the partial clip is valid
+                                    if (
+                                        full_clip.duration <= remaining_duration + 0.01
+                                    ):  # Add small tolerance
+                                        # Use full clip again
+                                        try:
+                                            repeated_clip = full_clip.copy()
+                                            # Verify the copied clip has valid duration
                                             if (
-                                                hasattr(partial_clip, "duration")
-                                                and partial_clip.duration > 0
+                                                hasattr(repeated_clip, "duration")
+                                                and repeated_clip.duration > 0
                                             ):
-                                                extended_clips.append(partial_clip)
+                                                extended_clips.append(repeated_clip)
+                                                remaining_duration -= repeated_clip.duration
                                                 self.logger.debug(
-                                                    f"Added partial clip ({safe_end_time:.2f}s) from {clip_path}"
+                                                    f"Repeated full clip {clip_path} ({repetition_count}), remaining: {remaining_duration:.2f}s"
                                                 )
                                             else:
                                                 self.logger.warning(
-                                                    f"Invalid partial clip created from {clip_path}"
+                                                    f"Invalid copied clip duration for {clip_path}"
                                                 )
-                                                # Use full clip as fallback
+                                                break
+                                        except Exception as copy_error:
+                                            self.logger.error(
+                                                f"Failed to copy clip {clip_path}: {copy_error}"
+                                            )
+                                            break
+                                    else:
+                                        # Use partial clip - add safety checks
+                                        try:
+                                            # Ensure we don't exceed the clip duration
+                                            safe_end_time = min(
+                                                remaining_duration, full_clip.duration
+                                            )
+                                            if (
+                                                safe_end_time > 0.01
+                                            ):  # Minimum duration check
+                                                partial_clip = full_clip.subclipped(
+                                                    0, safe_end_time
+                                                )
+                                                # Verify the partial clip is valid
+                                                if (
+                                                    hasattr(partial_clip, "duration")
+                                                    and partial_clip.duration > 0
+                                                ):
+                                                    extended_clips.append(partial_clip)
+                                                    self.logger.debug(
+                                                        f"Added partial clip ({safe_end_time:.2f}s) from {clip_path}"
+                                                    )
+                                                else:
+                                                    self.logger.warning(
+                                                        f"Invalid partial clip created from {clip_path}"
+                                                    )
+                                                    # Use full clip as fallback
+                                                    extended_clips.append(full_clip.copy())
+                                                    remaining_duration -= full_clip.duration
+                                            else:
+                                                self.logger.warning(
+                                                    f"Invalid safe_end_time: {safe_end_time:.2f}s"
+                                                )
+                                                break
+                                        except Exception as subclip_error:
+                                            self.logger.error(
+                                                f"Failed to create subclip from {clip_path}: {subclip_error}"
+                                            )
+                                            # Use full clip as fallback
+                                            try:
                                                 extended_clips.append(full_clip.copy())
                                                 remaining_duration -= full_clip.duration
-                                        else:
-                                            self.logger.warning(
-                                                f"Invalid safe_end_time: {safe_end_time:.2f}s"
-                                            )
-                                            break
-                                    except Exception as subclip_error:
-                                        self.logger.error(
-                                            f"Failed to create subclip from {clip_path}: {subclip_error}"
-                                        )
-                                        # Use full clip as fallback
-                                        try:
-                                            extended_clips.append(full_clip.copy())
-                                            remaining_duration -= full_clip.duration
-                                        except Exception as fallback_error:
-                                            self.logger.error(
-                                                f"Fallback also failed for {clip_path}: {fallback_error}"
-                                            )
-                                            break
+                                            except Exception as fallback_error:
+                                                self.logger.error(
+                                                    f"Fallback also failed for {clip_path}: {fallback_error}"
+                                                )
+                                                break
 
-                                remaining_duration = max(
-                                    0, remaining_duration
-                                )  # Ensure non-negative
+                                    remaining_duration = max(
+                                        0, remaining_duration
+                                    )  # Ensure non-negative
+                            else:
+                                # Single mode: repeat current clip (AAAABBCCCC) - original logic
+                                while (
+                                    remaining_duration > 0.01
+                                    and repetition_count < max_repetitions
+                                ):
+                                    repetition_count += 1
+
+                                    if (
+                                        full_clip.duration <= remaining_duration + 0.01
+                                    ):  # Add small tolerance
+                                        # Use full clip again
+                                        try:
+                                            repeated_clip = full_clip.copy()
+                                            # Verify the copied clip has valid duration
+                                            if (
+                                                hasattr(repeated_clip, "duration")
+                                                and repeated_clip.duration > 0
+                                            ):
+                                                extended_clips.append(repeated_clip)
+                                                remaining_duration -= repeated_clip.duration
+                                                self.logger.debug(
+                                                    f"Repeated full clip {clip_path} ({repetition_count}), remaining: {remaining_duration:.2f}s"
+                                                )
+                                            else:
+                                                self.logger.warning(
+                                                    f"Invalid copied clip duration for {clip_path}"
+                                                )
+                                                break
+                                        except Exception as copy_error:
+                                            self.logger.error(
+                                                f"Failed to copy clip {clip_path}: {copy_error}"
+                                            )
+                                            break
+                                    else:
+                                        # Use partial clip - add safety checks
+                                        try:
+                                            # Ensure we don't exceed the clip duration
+                                            safe_end_time = min(
+                                                remaining_duration, full_clip.duration
+                                            )
+                                            if (
+                                                safe_end_time > 0.01
+                                            ):  # Minimum duration check
+                                                partial_clip = full_clip.subclipped(
+                                                    0, safe_end_time
+                                                )
+                                                # Verify the partial clip is valid
+                                                if (
+                                                    hasattr(partial_clip, "duration")
+                                                    and partial_clip.duration > 0
+                                                ):
+                                                    extended_clips.append(partial_clip)
+                                                    self.logger.debug(
+                                                        f"Added partial clip ({safe_end_time:.2f}s) from {clip_path}"
+                                                    )
+                                                else:
+                                                    self.logger.warning(
+                                                        f"Invalid partial clip created from {clip_path}"
+                                                    )
+                                                    # Use full clip as fallback
+                                                    extended_clips.append(full_clip.copy())
+                                                    remaining_duration -= full_clip.duration
+                                            else:
+                                                self.logger.warning(
+                                                    f"Invalid safe_end_time: {safe_end_time:.2f}s"
+                                                )
+                                                break
+                                        except Exception as subclip_error:
+                                            self.logger.error(
+                                                f"Failed to create subclip from {clip_path}: {subclip_error}"
+                                            )
+                                            # Use full clip as fallback
+                                            try:
+                                                extended_clips.append(full_clip.copy())
+                                                remaining_duration -= full_clip.duration
+                                            except Exception as fallback_error:
+                                                self.logger.error(
+                                                    f"Fallback also failed for {clip_path}: {fallback_error}"
+                                                )
+                                                break
+
+                                    remaining_duration = max(
+                                        0, remaining_duration
+                                    )  # Ensure non-negative
 
                             # Concatenate all extended clips with error handling
                             if len(extended_clips) > 1:

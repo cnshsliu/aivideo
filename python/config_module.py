@@ -237,4 +237,10 @@ def parse_args():
         default="none",
         help="Body text animation type (none, wipe_down, default: none)",
     )
+    parser.add_argument(
+        "--repeatmode",
+        choices=["single", "batch"],
+        default="batch",
+        help="Clip repeat mode: single (repeat current clip) or batch (cycle through all clips)",
+    )
     return parser.parse_args()

@@ -10,7 +10,13 @@ import { spawn } from 'child_process';
 import type { Project } from '$lib/server/db/schema';
 
 // Store active child processes for cancellation
-const activeProcesses = new Map<string, { child: any; logStream: any }>();
+const activeProcesses = new Map<
+  string,
+  {
+    child: import('child_process').ChildProcess;
+    logStream: import('fs').WriteStream;
+  }
+>();
 
 export async function POST({ params, cookies }) {
   try {
@@ -391,6 +397,11 @@ function composeCommand(project: Project, projectPath: string): string {
     command += ` --bodytext "${bodytextPath}"`;
     command += ` --bodytextlength ${project.bodytextLength}`;
     command += ` --bodytext_animation wipe_down`;
+  }
+
+  // Add repeatmode (required parameter)
+  if (project.repeatmode) {
+    command += ` --repeatmode ${project.repeatmode}`;
   }
 
   if (project.genSubtitle) {
